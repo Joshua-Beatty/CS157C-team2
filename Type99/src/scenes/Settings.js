@@ -1,41 +1,39 @@
 import { NavigationButton } from '../components/NavigationButton.js';
 
-export class Home extends Phaser.Scene {
+export class Settings extends Phaser.Scene {
 
     constructor() {
-        super('Home');
+        super('Settings');
     }
 
     preload() {
-    // Preload background image
+        // Preload background image
         this.load.image('background', 'assets/profile_background.png');
-    
+
     }
 
     create() {
+        // Display background image
         this.background = this.add.tileSprite(640, 360, 1280, 720, 'background');
 
         // Display navigation buttons
-        new NavigationButton(this, 150, 50, "Go to Profile", () => {
-            this.scene.start('Profile');
+        new NavigationButton(this, 150, 50, "Go to Home", () => {
+            this.scene.start('Home');
         });
 
-        new NavigationButton(this, 950, 50, "Settings", () => {
-            this.scene.start('Settings');
+        new NavigationButton(this, 450, 50, "Go to Profile", () => {
+            this.scene.start('Profile');
         });
 
         new NavigationButton(this, 1150, 50, "Sign Out", () => {
             this.scene.start('Login');
         });
 
-        new NavigationButton(this, 640, 400, "Queue for a game", () => {
-            this.scene.start('Game');
-        });
 
-        // Display home text
-        this.add.text(540, 300, "Type99", {
-            fontSize: '64px'
-        });
+        // Display text for settings
+        this.add.text(420, 160, "Customize your settings.", {
+            fontSize: '32px'
+        })
 
     }
 

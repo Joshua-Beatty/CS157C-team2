@@ -2,6 +2,7 @@ import { Home } from './scenes/Home.js';
 import { Profile } from './scenes/Profile.js';
 import { Login } from './scenes/Login.js';
 import { Game } from './scenes/Game.js';
+import { Settings } from './scenes/Settings.js';
 
 const config = {
     type: Phaser.AUTO,
@@ -16,7 +17,8 @@ const config = {
         Login,
         Home,
         Profile,
-        Game
+        Game,
+        Settings
     ],
     scale: {
         mode: Phaser.Scale.FIT,
