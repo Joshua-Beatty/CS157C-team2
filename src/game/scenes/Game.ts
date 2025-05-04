@@ -9,8 +9,10 @@ export class Game extends Scene
 
     wordsText: Phaser.GameObjects.Text;
     inputText: Phaser.GameObjects.Text;
-    words = ['apple', 'breeze', 'cloud', 'orange', 'planet', 'river', 'train', 'tunnel', 'castle', 'ladder', 'mountain', 'puzzle', 'hammer', 'robot', 'crystal', 'eagle', 'flame', 'forest', 'ghost', 'honey', 'chair', 'tiger', 'banana', 'paper', 'garden', 'shadow', 'snow', 'stone', 'window', 'wizard', 'rocket', 'jelly', 'sparkle', 'mirror', 'magic', 'night', 'ocean', 'echo', 'comet', 'laser', 'dragon', 'knight', 'quest', 'legend', 'thunder', 'neon', 'silent', 'pixel', 'energy', 'glitch'];
-    
+    wordBank = ['apple', 'banana', 'cherry', 'date', 'elderberry', 'fig', 'grape', 'honeydew', 'kiwi', 'lemon', 'mango', 'nectarine', 'orange', 'papaya', 'quince', 'raspberry', 'strawberry', 'tangerine', 'watermelon', 'apricot', 'blueberry', 'cantaloupe', 'dragonfruit', 'eggplant', 'fennel', 'guava', 'hibiscus', 'iceberg', 'jalapeno', 'kumquat', 'lime', 'mulberry', 'nectarine', 'olive', 'persimmon', 'pineapple', 'plum', 'pomegranate', 'rhubarb', 'starfruit', 'tomato', 'unique', 'yam', 'zucchini', 'acorn', 'bagel', 'cat', 'dog', 'elephant', 'frog', 'giraffe', 'horse', 'iguana', 'jellyfish', 'kangaroo', 'lion', 'monkey', 'narwhal', 'octopus', 'parrot', 'quail', 'rabbit', 'snake', 'tiger', 'umbrella', 'vulture', 'walrus', 'xylophone', 'yak', 'zebra', 'antelope', 'bear', 'cow', 'dolphin', 'eagle', 'fox', 'gorilla', 'hippopotamus', 'iguana', 'jaguar', 'koala', 'lemur', 'moose', 'newt', 'opossum', 'penguin', 'quokka', 'raccoon', 'sloth', 'toucan', 'unicorn', 'viper', 'whale', 'xerus', 'yellowjacket', 'zebra', 'albatross', 'baboon', 'cactus', 'dingo', 'elk', 'fern', 'gecko', 'hawk', 'owl', 'penguin', 'quail', 'rooster', 'sparrow', 'toucan', 'vulture', 'warbler', 'xenops', 'yodeler', 'zebra', 'artichoke', 'blueberry', 'cabbage', 'daffodil', 'eucalyptus', 'fern', 'ginseng', 'hibiscus', 'ivy', 'juniper', 'kelp', 'lavender', 'marigold', 'nasturtium', 'oregano', 'petunia', 'quinoa', 'rosemary', 'sage', 'thyme', 'violet', 'wisteria', 'xenia', 'yucca', 'zinnia', 'acorn', 'ball', 'clock', 'door', 'elephant', 'flag', 'grape', 'hat', 'ink', 'jug', 'kite', 'lemon', 'mask', 'nut', 'octagon', 'park', 'queen', 'radio', 'ship', 'train', 'umbrella', 'vest', 'wagon', 'xylophone', 'yellow', 'zebra', 'axis', 'break', 'crane', 'drum', 'end', 'flare', 'gap', 'hunt', 'icon', 'joke', 'key', 'love', 'mark', 'neck', 'oval', 'park', 'quiz', 'rest', 'snap', 'tale', 'unit', 'void', 'wall', 'yoke', 'zest', 'arm', 'bend', 'cash', 'die', 'ear', 'fit', 'gun', 'ham', 'ink', 'joy', 'kit', 'lad', 'man', 'net', 'oil', 'pen', 'rat', 'sun', 'toy', 'urn', 'vat', 'win', 'yak', 'zip', 'aim', 'ball', 'coat', 'dust', 'egg', 'fan', 'grid', 'horn', 'ink', 'jam', 'log', 'mix', 'nap', 'odd', 'pit', 'rug', 'saw', 'tin', 'undo', 'vet', 'wig', 'you', 'zip', 'amber', 'bench', 'coat', 'deck', 'epic', 'fame', 'gear', 'hand', 'ice', 'jam', 'king', 'log', 'map', 'net', 'oak', 'pet', 'quiz', 'rug', 'sap', 'top', 'urn', 'van', 'web', 'yam', 'zoo', 'angle', 'bar', 'cast', 'deal', 'eel', 'flat', 'gash', 'heat', 'icon', 'jolt', 'king', 'lace', 'mile', 'net', 'oak', 'pit', 'queen', 'rag', 'sat', 'tin', 'urn', 'vet', 'win', 'yet', 'zone', 'alpha', 'bravo', 'charlie', 'delta', 'echo', 'foxtrot', 'golf', 'hotel', 'india', 'juliet', 'kilo', 'lima', 'mike', 'november', 'oscar', 'papa', 'quebec', 'romeo', 'sierra', 'tango', 'uniform', 'victor', 'whiskey', 'xray', 'yankee', 'zulu'];
+    // words = ['apple', 'breeze', 'cloud', 'orange', 'planet', 'river', 'train', 'tunnel', 'castle', 'ladder', 'mountain', 'puzzle', 'hammer', 'robot', 'crystal', 'eagle', 'flame', 'forest', 'ghost', 'honey', 'chair', 'tiger', 'banana', 'paper', 'garden', 'shadow', 'snow', 'stone', 'window', 'wizard', 'rocket', 'jelly', 'sparkle', 'mirror', 'magic', 'night', 'ocean', 'echo', 'comet', 'laser', 'dragon', 'knight', 'quest', 'legend', 'thunder', 'neon', 'silent', 'pixel', 'energy', 'glitch'];
+    words = this.wordBank.sort(() => 0.5 - Math.random()).slice(0, 50);
+
     currentWordIndex = 0;
     wordsInput = '';
 
@@ -63,38 +65,56 @@ export class Game extends Scene
     }
 
     handleKeyPress(key: string) {
-        if (key === 'Backspace') {
-            // Remove most recent key if user presses backspace
-            // Do not remove space (makes sure user doesn't remove already completed words)
-            if (this.wordsInput[this.wordsInput.length - 1] !== ' ') {
-                this.wordsInput = this.wordsInput.slice(0, -1);
+        if (this.currentWordIndex < 50) {
+            if (key === 'Backspace') {
+                // Remove most recent key if user presses backspace
+                // Do not remove space (makes sure user doesn't remove already completed words)
+                if (this.wordsInput[this.wordsInput.length - 1] !== ' ') {
+                    this.wordsInput = this.wordsInput.slice(0, -1);
+                }
             }
-        }
-        else if (key === ' ') {
-            // Check if word is correct if user presses space
-            
-            // Get most recent space-separated word, or '' if no words
-            const currentWord = this.wordsInput.split(' ').pop() || '';
-
-            if (currentWord === this.words[this.currentWordIndex]) {
+            else if (key === ' ') {
+                // Check if word is correct if user presses space
+                
+                // Get most recent space-separated word, or '' if no words
+                const currentWord = this.wordsInput.split(' ').pop() || '';
+    
+                // Word is correct
+                if (currentWord === this.words[this.currentWordIndex]) {
+                    this.wordsInput += key;
+                    this.currentWordIndex++;
+    
+                    // Check if user is done
+                    if (this.currentWordIndex === 50) {
+                        this.completed();
+                    }
+                    
+    
+                }
+            }
+            // Only accept alphanumeric characters as user input
+            else if (key.length === 1 && /^[a-zA-Z]$/.test(key)) {
+                // Add this key to typedText
                 this.wordsInput += key;
-                this.currentWordIndex++;
-
             }
+    
+            this.inputText.setText(this.wordsInput);
         }
-        // Only accept alphanumeric characters as user input
-        else if (key.length === 1 && /^[a-zA-Z]$/.test(key)) {
-            // Add this key to typedText
-            this.wordsInput += key;
-        }
-
-        this.inputText.setText(this.wordsInput);
+        
 
 
 
     }
 
 
+    completed() {
+        this.add.text(512, 700, 'You have finished typing all the words!', {
+            fontFamily: 'Consolas', fontSize: '20px', color: '#ffffff',
+            stroke: '#000000', strokeThickness: 4,
+            align: 'center',
+            wordWrap: {width: 800, useAdvancedWrap: true }
+        }).setOrigin(0.5).setDepth(100);
+    }
 
 
     changeScene ()
