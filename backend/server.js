@@ -29,7 +29,8 @@ app.use(session({
 // Redis client
 const client = redis.createClient({
     socket: {
-        host: '34.173.23.63',
+        // local host for now, maybe VM IP later
+        host: 'localhost',
         port: 6379
     }
 });
@@ -151,6 +152,92 @@ app.post('/logout', (req, res) => {
         return res.json({ success: true, message: "Log out successful"});
     })
 });
+
+
+// GAME ENDPOINTS
+
+// Enter queue endpoint
+app.post('/enterqueue', async (req, res) => {
+    // Retrieve current global lobby ID counter from Redis
+    let queueId = await client.get('queue:counter');
+    let queueIsOpen = await client.get('queue:isOpen');
+
+    // Global queue ID doesn't exist
+    if (!queueId) {
+        // Setting new queue:counter to 1000
+        console.log("Setting new queue:counter to 1000 in Redis");
+        await client.set('queue:counter', 1000);
+        queueId = await client.get('queue:counter');
+    }
+    // Global queue:isOpen doesn't exist
+    else if (!queueIsOpen) {
+        console.log("Setting new queueIsOpen to 0 in Redis");
+        await client.set('queue:isOpen', 0);
+        queueIsOpen = await client.get('queue:isOpen');
+    }
+
+    const queue = `queue:${queueId}`
+
+    if (queueIsOpen == 1) {
+        // Enter queue
+        await client.zAdd(queue, [{score: 0, value: req.session.user}]);
+
+        // Get new queue size
+        const queueSize = await client.zCard(queue);
+        // Get number of players ready
+        const readySize = await client.zCount(queue, 1, 1);
+        return res.json({ success: true, queueId: queueId, queueSize: queueSize, readySize: readySize});
+
+    }
+    else {
+        // Open queue and enter it
+        await client.set('queue:isOpen', 1);
+        await client.zAdd(queue, [{score: 0, value: req.session.user}]);
+
+        // Get new queue size
+        const queueSize = await client.zCard(queue);
+        // Get number of players ready
+        const readySize = await client.zCount(queue, 1, 1);
+        return res.json({ success: true, queueId: queueId, queueSize: queueSize, readySize: readySize});
+
+    }
+
+});
+
+// Ready up endpoint
+app.post('/readyup', async (req, res) => {
+    // Get queueId from request
+    const { queueId } = req.body;
+
+    const user = req.session.user;
+    const queue = `queue:${queueId}`;
+
+    // Set score to 1 in queue (means user is ready)
+    await client.zAdd(queue, [{score: 1, value: user}]);
+    
+    // Get number of ready players and size of queue
+    const readySize = await client.zCount(queue, 1, 1);
+    const queueSize = await client.zCard(queue);
+
+    return res.json({ success: true, queueSize: queueSize, readySize: readySize});
+
+})
+
+
+// Queue status endpoint
+app.post('/queuestatus', async (req, res) => {
+    // Get queueId from request
+    const { queueId } = req.body;
+    const queue = `queue:${queueId}`;
+
+    // Query queue size and ready size from 
+    const queueSize = await client.zCard(queue);
+    const readySize = await client.zCount(queue, 1, 1);
+
+    console.log("Updating queue status...");
+    return res.json({ success: true, queueSize: queueSize, readySize: readySize});
+
+})
 
 
 // Start server

@@ -1,82 +1,52 @@
 import { useRef, useState } from 'react';
 import { IRefPhaserGame, PhaserGame } from '../PhaserGame';
 import { MainMenu } from '../game/scenes/MainMenu';
+import { Queue } from '../game/scenes/Queue';
 
 function Game()
 {
-    // The sprite can only be moved in the MainMenu Scene
-    const [cantMoveSprite, setCantMoveSprite] = useState(true);
-
     //  References to the PhaserGame component (game and scene are exposed)
     const phaserRef = useRef<IRefPhaserGame | null>(null);
-    const [spritePosition, setSpritePosition] = useState({ x: 0, y: 0 });
 
-    const changeScene = () => {
+    // Can only ready up if user is in queue
+    const [isReady, setCantReady] = useState(true);
+    // Can only queue is user is not already queued
+    const [isQueued, setIsQueued] = useState(false);
 
+    // ENTER QUEUE
+    const enterQueue = () => {
         if(phaserRef.current)
         {     
-            const scene = phaserRef.current.scene as MainMenu;
+            const scene = phaserRef.current.scene as Queue;
             
             if (scene)
             {
-                scene.changeScene();
+                scene.enterQueue();
+                setCantReady(false);
+                setIsQueued(true);
             }
         }
     }
 
-    const moveSprite = () => {
-
-        if(phaserRef.current)
-        {
-
-            const scene = phaserRef.current.scene as MainMenu;
-
-            if (scene && scene.scene.key === 'MainMenu')
-            {
-                // Get the update logo position
-                scene.moveLogo(({ x, y }) => {
-
-                    setSpritePosition({ x, y });
-
-                });
-            }
-        }
-
-    }
-
-    const addSprite = () => {
-
+    // READY UP
+    const readyUp = () => {
         if (phaserRef.current)
         {
-            const scene = phaserRef.current.scene;
+            const scene = phaserRef.current.scene as Queue;
 
             if (scene)
             {
-                // Add more stars
-                const x = Phaser.Math.Between(64, scene.scale.width - 64);
-                const y = Phaser.Math.Between(64, scene.scale.height - 64);
-    
-                //  `add.sprite` is a Phaser GameObjectFactory method and it returns a Sprite Game Object instance
-                const star = scene.add.sprite(x, y, 'star');
-    
-                //  ... which you can then act upon. Here we create a Phaser Tween to fade the star sprite in and out.
-                //  You could, of course, do this from within the Phaser Scene code, but this is just an example
-                //  showing that Phaser objects and systems can be acted upon from outside of Phaser itself.
-                scene.add.tween({
-                    targets: star,
-                    duration: 500 + Math.random() * 1000,
-                    alpha: 0,
-                    yoyo: true,
-                    repeat: -1
-                });
+                scene.readyUp()
+                setCantReady(true);
             }
         }
     }
+
 
     // Event emitted from the PhaserGame component
     const currentScene = (scene: Phaser.Scene) => {
 
-        setCantMoveSprite(scene.scene.key !== 'MainMenu');
+        // setCantMoveSprite(scene.scene.key !== 'MainMenu');
         
     }
 
@@ -84,6 +54,13 @@ function Game()
         <div id="app">
             <PhaserGame ref={phaserRef} currentActiveScene={currentScene} />
             <div>
+                <div>
+                    <button disabled={isQueued} className="button" onClick={enterQueue}>Queue</button>
+                </div>
+                <div>
+                    <button disabled={isReady} className="button" onClick={readyUp}>Ready Up</button>
+                </div>
+                {/*
                 <div>
                     <button className="button" onClick={changeScene}>Change Scene</button>
                 </div>
@@ -96,6 +73,7 @@ function Game()
                 <div>
                     <button className="button" onClick={addSprite}>Add New Sprite</button>
                 </div>
+                */}
             </div>
         </div>
     )
