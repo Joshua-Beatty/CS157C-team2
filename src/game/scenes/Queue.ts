@@ -63,16 +63,16 @@ export class Queue extends Scene
         EventBus.emit('current-scene-ready', this);
     }
     
-    // changeScene ()
-    // {
-    //     if (this.logoTween)
-    //     {
-    //         this.logoTween.stop();
-    //         this.logoTween = null;
-    //     }
+    changeScene ()
+    {
+        // if (this.logoTween)
+        // {
+        //     this.logoTween.stop();
+        //     this.logoTween = null;
+        // }
 
-    //     this.scene.start('Game');
-    // }
+        this.scene.start('Game');
+    }
 
 
 

@@ -40,7 +40,7 @@ export class Game extends Scene
         // Start of game logic
 
         // Display the 50 words
-        this.wordsText = this.add.text(512, 100, this.words.join(' '), {
+        this.wordsText = this.add.text(512, 200, this.words.join(' '), {
             fontFamily: 'Consolas', fontSize: '20px', color: '#ffffff', // Consolas is monospaced
             stroke: '#000000', strokeThickness: 4,
             align: 'center',

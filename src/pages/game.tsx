@@ -36,10 +36,22 @@ function Game()
 
             if (scene)
             {
-                scene.readyUp()
+                scene.readyUp();
                 setCantReady(true);
             }
         }
+    }
+
+    const startGame = () => {
+        if (phaserRef.current)
+            {
+                const scene = phaserRef.current.scene as Queue;
+    
+                if (scene)
+                {
+                    scene.changeScene();
+                }
+            }
     }
 
 
@@ -59,6 +71,9 @@ function Game()
                 </div>
                 <div>
                     <button disabled={isReady} className="button" onClick={readyUp}>Ready Up</button>
+                </div>
+                <div>
+                    <button className="button" onClick={startGame}>Start Game</button>
                 </div>
                 {/*
                 <div>
