@@ -1,6 +1,5 @@
 import { useRef, useState } from 'react';
 import { IRefPhaserGame, PhaserGame } from '../PhaserGame';
-import { MainMenu } from '../game/scenes/MainMenu';
 import { Queue } from '../game/scenes/Queue';
 
 function Game()
@@ -75,20 +74,6 @@ function Game()
                 <div>
                     <button className="button" onClick={startGame}>Start Game</button>
                 </div>
-                {/*
-                <div>
-                    <button className="button" onClick={changeScene}>Change Scene</button>
-                </div>
-                <div>
-                    <button disabled={cantMoveSprite} className="button" onClick={moveSprite}>Toggle Movement</button>
-                </div>
-                <div className="spritePosition">Sprite Position:
-                    <pre>{`{\n  x: ${spritePosition.x}\n  y: ${spritePosition.y}\n}`}</pre>
-                </div>
-                <div>
-                    <button className="button" onClick={addSprite}>Add New Sprite</button>
-                </div>
-                */}
             </div>
         </div>
     )
