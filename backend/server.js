@@ -372,6 +372,128 @@ app.post('/joingame', async (req, res) => {
 });
 
 
+// Gets zone list from database
+app.post('/getzonelist', async (req, res) => {
+    const { gameId } = req.body;
+    
+    // Get zone list
+    const zoneList = await client.lRange(`game:${gameId}:zoneList`, 0, -1);
+    
+    return res.json({ success: true, zoneList: zoneList });
+});
+
+// Checks zone list from database
+app.post('/checkzone', async (req, res) => {
+    const { gameId, currentWord } = req.body;
+    const user = req.session.user;
+    
+    // Get zone list
+    const zoneList = await client.lRange(`game:${gameId}:zoneList`, 0, -1);
+    
+    // Check if current word is in zone
+    const inZone = zoneList.includes(currentWord);
+    
+    if (inZone) {
+        // Get current HP
+        const playerHp = await client.zScore(`game:${gameId}:hps`, user);
+        
+        // Decrement HP if in zone
+        if (playerHp > 0) {
+            await client.zAdd(`game:${gameId}:hps`, [{score: playerHp - 1, value: user}]);
+            
+            // If HP is now 0, add to eliminated list
+            if (playerHp - 1 <= 0) {
+                await client.rPush(`game:${gameId}:eliminated`, user);
+                
+                // Add kill to leader's score
+                const leader = await client.zRange(`game:${gameId}:wordCounts`, -1, -1, {REV: true});
+                if (leader.length > 0) {
+                    const leaderKills = await client.get(`game:${gameId}:${leader[0]}:kills`) || 0;
+                    await client.set(`game:${gameId}:${leader[0]}:kills`, parseInt(leaderKills) + 1);
+                }
+            }
+            
+            return res.json({ 
+                success: true, 
+                inZone: true, 
+                newHp: playerHp - 1 
+            });
+        }
+    }
+    
+    return res.json({ success: true, inZone: inZone });
+});
+
+// Updates current leader in game
+app.post('/updateleader', async (req, res) => {
+    const { gameId, wordCount } = req.body;
+    const user = req.session.user;
+    
+    // Update this player's word count
+    await client.zAdd(`game:${gameId}:wordCounts`, [{score: wordCount, value: user}]);
+    
+    // Check if this player is the leader
+    const playerWordCounts = await client.zRange(`game:${gameId}:wordCounts`, 0, -1, {
+        REV: true, 
+        WITHSCORES: true
+    });
+    
+    let isLeader = false;
+    let leaderScore = 0;
+    
+    // Check if this player has the highest score
+    if (playerWordCounts.length >= 2 && playerWordCounts[0] === user) {
+        isLeader = true;
+        leaderScore = parseInt(playerWordCounts[1]);
+    }
+    
+    // If player is leader, update zone
+    if (isLeader) {
+        // Calculate zone size based on milestones
+        let zoneGap = 9; // Start with 9 words behind (at milestone 10)
+        
+        // Reduce zone gap by 1 every 10 words after the first 10
+        if (wordCount > 10) {
+            const milestonesPassed = Math.floor((wordCount - 10) / 10);
+            zoneGap = Math.max(1, 9 - milestonesPassed);
+        }
+        
+        // Calculate the zone position (leader position - gap)
+        const zonePosition = Math.max(0, wordCount - zoneGap);
+        
+        // Get all words up to zonePosition
+        const wordList = await client.lRange(`game:${gameId}:wordList`, 0, zonePosition - 1);
+        
+        // Clear the existing zone list
+        await client.del(`game:${gameId}:zoneList`);
+        
+        // Add all words up to zonePosition to zone list
+        if (wordList.length > 0) {
+            await client.rPush(`game:${gameId}:zoneList`, ...wordList);
+        }
+        
+        return res.json({ 
+            success: true, 
+            isLeader: true, 
+            zonePosition: zonePosition, 
+            zoneGap: zoneGap
+        });
+    }
+    
+    return res.json({ success: true, isLeader: false });
+});
+
+// Gets leader kills
+app.post('/getleaderkills', async (req, res) => {
+    const { gameId } = req.body;
+    const user = req.session.user;
+    
+    const kills = await client.get(`game:${gameId}:${user}:kills`) || 0;
+    
+    return res.json({ success: true, kills: parseInt(kills) });
+});
+
+
 // Start server
 const PORT = 5000;
 app.listen(PORT, () => {
