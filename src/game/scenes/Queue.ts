@@ -165,7 +165,9 @@ export class Queue extends Scene
                     const readySize = response.data.readySize;
                     this.playersReadyText.setText(`Players ready: ${readySize} / ${queueSize}`);
 
-                    // 
+                    if (readySize == queueSize) {
+                        this.gameStarted = true;
+                    }
 
 
                 }
@@ -209,11 +211,12 @@ export class Queue extends Scene
 
                 // Check if this player is the last player to ready
                 this.lastReady = response.data.lastReady;
-                this.gameStartText.setText('All players are ready. Starting game...');
+                
                 
                 // Wait 1 second before starting game
                 await new Promise(resolve => setTimeout(resolve, 1000));
                 if (this.lastReady) {
+                    this.gameStartText.setText('All players are ready. Starting game...');
                     this.gameStarted = true;
                     this.startGame();
                 }
