@@ -7,7 +7,9 @@ export class Queue extends Scene
 {
     queueId: string | null = null;
     // Update queue status periodically
-    queueUpdateInterval: NodeJS.Timeout | null = null;
+    // queueUpdateInterval: number | null = null;
+    lastReady: boolean | null = null;
+    gameStarted: boolean | null = null;
 
     background: GameObjects.Image;
     logo: GameObjects.Image;
@@ -99,9 +101,10 @@ export class Queue extends Scene
                 this.gameStartText.setText('Game will start when all players are ready.');
 
                 // Start updating queue status periodically
-                if (!this.queueUpdateInterval) {
-                    this.queueUpdateInterval = setInterval(() => this.updateQueueStatus(), 1000);
-                }
+                // if (!this.queueUpdateInterval) {
+                //     this.queueUpdateInterval = window.setInterval(() => this.updateQueueStatus(), 1000);
+                // }
+                await this.updateQueueStatusWhile();
             }
 
         }
@@ -111,8 +114,35 @@ export class Queue extends Scene
         }
     }
 
+    async updateQueueStatusWhile() {
+        while (!this.gameStarted) {
+            await this.updateQueueStatus();
+
+            // Update queue status every 1 second
+            await new Promise(resolve => setTimeout(resolve, 1000));
+        }
+
+        if (this.gameStarted) {
+            this.gameStartText.setText('All players are ready. Starting game...');
+
+            // Wait 1 second before starting game
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            await this.startGame();
+
+        }
+        
+    }
 
     async updateQueueStatus() {
+        // Stop updating queue when game is starting
+        // if (this.gameStarted) {
+        //     clearInterval(this.queueUpdateInterval);
+        //     this.queueUpdateInterval = null;
+        //     return;
+        // }
+
+
+
         // Only update queue status if user is currently in queue
         if (!this.queueId) {
             return;
@@ -132,6 +162,10 @@ export class Queue extends Scene
     
                     const readySize = response.data.readySize;
                     this.playersReadyText.setText(`Players ready: ${readySize} / ${queueSize}`);
+
+                    // 
+
+
                 }
             }
             catch (error) {
@@ -149,6 +183,7 @@ export class Queue extends Scene
 
     }
 
+    // User clicks Ready Up button
     async readyUp()
     {
         try {
@@ -169,6 +204,14 @@ export class Queue extends Scene
 
                 const readySize = response.data.readySize;
                 this.playersReadyText.setText(`Players ready: ${readySize} / ${queueSize}`);
+
+                // Check if this player is the last player to ready
+                this.lastReady = response.data.lastReady;
+                if (this.lastReady) {
+                    this.startGame();
+                }
+
+
             }
 
         }
@@ -176,6 +219,19 @@ export class Queue extends Scene
             this.readyText.setText("Failed to ready up");
             console.error(error);
         }
+    }
+
+
+    // Game starts
+    async startGame() {
+        try {
+            this.scene.start("Game");
+        }
+        catch (error) {
+            this.gameStartText.setText("Error starting game");
+            console.error(error);
+        }
+
     }
 
 }

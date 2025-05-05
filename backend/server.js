@@ -219,7 +219,17 @@ app.post('/readyup', async (req, res) => {
     const readySize = await client.zCount(queue, 1, 1);
     const queueSize = await client.zCard(queue);
 
-    return res.json({ success: true, queueSize: queueSize, readySize: readySize});
+    // If this player is the last player to ready up
+    if (readySize == queueSize) {
+        // Set player last ready
+        await client.set(`queue:${queueId}:lastReady`, user);
+        return res.json({ success: true, queueSize: queueSize, readySize: readySize, lastReady: true});
+    }
+    else {
+        return res.json({ success: true, queueSize: queueSize, readySize: readySize, lastReady: false});
+    }
+
+    
 
 })
 
@@ -238,6 +248,119 @@ app.post('/queuestatus', async (req, res) => {
     return res.json({ success: true, queueSize: queueSize, readySize: readySize});
 
 })
+
+
+// Last ready endpoint (to check which player starts the game)
+app.get('/lastready', async (req, res) => {
+    const queueId = await client.get("queue:counter");
+
+    const userLastReady = await client.get(`queue:${queueId}:lastready`);
+
+    // Game ID is set to current Queue ID
+    return res.json({ success: true, lastReady: userLastReady, gameId: queueId});
+})
+
+
+// User endpoint (get user)
+app.get('/user', (req, res) => {
+    const user = req.session.user;
+    return res.json({ success:true, user: user});
+})
+
+
+// Start game endpoint (only for last player to ready up)
+app.post('/startgame', async (req, res) => {
+    const { gameId, wordList } = req.body;
+
+    // Close the queue
+    await client.set("queue:isOpen", 0);
+    await client.incr("queue:counter");
+
+    // Set game ID counter in Redis databse
+    await client.set("game:counter", gameId);
+
+    // Get all players from queue
+    const players = await client.zRange(`queue:${gameId}`, 0, -1);
+    // Add each player to a new game in Redis database
+    for (let i = 0; i < players.length; i++) {
+        const player = players[i];
+        // Push player to list of players
+        await client.lPush(`game:${gameId}`, player);
+        // Push player to sorted set for player HPs
+        await client.zAdd(`game:${gameId}:hps`, [{score: 0, value: req.session.user}]);
+        // Create sorted set for player word count
+        await client.zAdd(`game:${gameId}:wordCounts`, [{score: 0, value: req.session.user}]);
+        
+    }
+    // Create word list
+    await client.rPush(`game:${gameId}:wordList`, ...wordList);
+
+    // Set game:gameId:ready to 1 after creating game, for other users to join game
+    await client.set(`game:${gameId}:ready`, 1);
+    return res.json({success: true});
+
+})
+
+// Update game endpoint (each user uses this to update their status in game)
+app.post('/updategame', async (req, res) => {
+    // Only leading player will add zone words and new words
+    const { hp, wordCount, newWords, newZoneWords } = req.body;
+    const { gameId } = req.body;
+    const user = req.session.user;
+
+    // Update HP in Redis database
+    await client.zAdd(`game:${gameId}:hps`, [{score: hp, value: user}])
+    // Update wordcount in Redis database
+    await client.zAdd(`game:${gameId}:wordCounts`, [{score: wordCount, value: user}])
+    // Update wordList in Redis database
+    await client.rPush(`game:${gameId}:wordList`, ...newWords);
+    // Update zoneList in Redis database
+    await client.rPush(`game:${gameId},zoneList`, ...newZoneWords);
+    // If player's HP is 0, add them to the list of eliminated players
+    if (hp == 0) {
+        await client.rPush(`game:${gameId}:eliminated`, user);
+    }
+
+
+})
+
+// Fetch game endpoint (each user uses this to update their display of other users' status)
+app.post('/fetchgame', async (req, res) => {
+    const { gameId } = req.body;
+
+    // Get player HPs with scores (descending order)
+    const playerHps = await client.zRevRange(`game:${gameId}:hps`, 0, -1, {WITHSCORES: true});
+    // Get player word counts with scores (descending order)
+    const playerWordCounts = await client.zRevRange(`game:${gameId}:wordcounts`, 0, -1, {WITHSCORES: true});
+    // Get word list
+    const wordList = await client.lRange(`game:${gameId}:wordList`, 0, -1);
+    // Get zone list (default is empty if no zonelist is found)
+    const zoneList = await client.lRange(`game:${gameId}:zoneList`, 0, -1);
+
+    return res.json({ success: true, playerHps: playerHps, playerWordCounts: playerWordCounts, 
+        wordList: wordList, zoneList: zoneList});
+
+})
+
+
+app.post('/checkgameready', async (req, res) => {
+    const { gameId } = req.body;
+
+    // Check if this gameId is ready
+    const gameReady = await client.get(`game:${gameId}:ready`);
+    if (gameReady) {
+        return res.json({ success: true, gameReady: true});
+    }
+    else {
+        return res.json({ success: true, gameReady: false});
+    }
+})
+
+
+// Join game endpoint (for all other players than last player to ready up)
+app.post('/joingame', async (req, res) => {
+
+});
 
 
 // Start server
