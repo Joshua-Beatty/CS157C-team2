@@ -30,7 +30,7 @@ app.use(session({
 const client = redis.createClient({
     socket: {
         // local host for now, maybe VM IP later
-        host: 'localhost',
+        host: '34.173.23.63',
         port: 6379
     }
 });
