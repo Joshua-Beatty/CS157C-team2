@@ -17,48 +17,63 @@ export class Queue extends Scene {
         super('Queue');
     }
 
-    create() {
-        // Set up Tetris-themed background
-        this.background = this.add.rectangle(512, 384, 1024, 768, 0x2980e9).setOrigin(0.5);
+    preload() {
+        // Load the WebFont script dynamically
+        this.load.script('webfont', 'https://ajax.googleapis.com/ajax/libs/webfont/1.6.26/webfont.js');
+    }
 
-        // Queue Text - with word wrap and reasonable size
+    create() {
+        
+        // Wait for WebFont to load the font before creating text
+        (window as any).WebFont.load({
+            google: {
+                families: ['Press Start 2P']
+            },
+            active: () => {
+                this.createGameElements();
+            }
+        });
+    }
+
+    createGameElements() {
+        // Queue Text
         this.queueText = this.add.text(512, 200, 'PRESS QUEUE TO FIND A GAME', {
-            fontFamily: 'Press Start 2P', 
-            fontSize: 60, // Reduced from 120px to a more reasonable size
+            fontFamily: '"Press Start 2P"', 
+            fontSize: '36px',
             color: '#ffffff',
             stroke: '#000000', 
             strokeThickness: 8,
-            align: 'center',
+            align: 'center'
         }).setOrigin(0.5).setDepth(100);
 
         // Ready Text
         this.readyText = this.add.text(512, 300, '', {
-            fontFamily: 'Press Start 2P', 
-            fontSize: 50, // Reduced for better rendering
+            fontFamily: '"Press Start 2P"', 
+            fontSize: '28px',
             color: '#ffffff',
             stroke: '#000000', 
             strokeThickness: 6,
-            align: 'center',
+            align: 'center'
         }).setOrigin(0.5).setDepth(100);
 
         // Number of Players Ready Text
         this.playersReadyText = this.add.text(512, 400, '', {
-            fontFamily: 'Press Start 2P', 
-            fontSize: 50, // Reduced for better rendering
+            fontFamily: '"Press Start 2P"', 
+            fontSize: '28px',
             color: '#ffffff',
             stroke: '#000000', 
             strokeThickness: 6,
-            align: 'center',
+            align: 'center'
         }).setOrigin(0.5).setDepth(100);
 
         // Game Start Text
         this.gameStartText = this.add.text(512, 500, '', {
-            fontFamily: 'Press Start 2P', 
-            fontSize: 50, // Reduced for better rendering
+            fontFamily: '"Press Start 2P"', 
+            fontSize: '28px',
             color: '#ffffff',
             stroke: '#000000', 
             strokeThickness: 6,
-            align: 'center',
+            align: 'center'
         }).setOrigin(0.5).setDepth(100);
 
         // Add Tetris-style decorative blocks
@@ -79,10 +94,14 @@ export class Queue extends Scene {
             0xf0f000  // O piece - yellow
         ];
         
-        // Add some falling blocks
-        for (let i = 0; i < 8; i++) {
-            const x = Phaser.Math.Between(100, 900);
-            const y = Phaser.Math.Between(100, 600);
+        // Get canvas dimensions for block positioning
+        const width = this.cameras.main.width;
+        const height = this.cameras.main.height;
+        
+        // Add some falling blocks that can appear anywhere on the canvas
+        for (let i = 0; i < 10; i++) {
+            const x = Phaser.Math.Between(20, width - 20);
+            const y = Phaser.Math.Between(20, height - 20);
             const size = Phaser.Math.Between(15, 30);
             const color = colors[Phaser.Math.Between(0, colors.length - 1)];
             
@@ -90,10 +109,10 @@ export class Queue extends Scene {
                 .setAlpha(0.5)
                 .setDepth(50);
                 
-            // Animate the block
+            // Animate the block to fall to the bottom of the screen
             this.tweens.add({
                 targets: block,
-                y: 800,
+                y: height + size,
                 duration: Phaser.Math.Between(3000, 8000),
                 ease: 'Linear',
                 repeat: -1,

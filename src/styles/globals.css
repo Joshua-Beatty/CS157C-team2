@@ -322,7 +322,7 @@ input {
   flex-direction: column;
   justify-content: center; /* Center vertically */
   align-items: center; /* Center horizontally */
-  background-color: var(--tetris-bg);
+  background-color: transparent;
   padding: 20px;
 }
 
