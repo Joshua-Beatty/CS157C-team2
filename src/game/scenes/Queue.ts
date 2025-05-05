@@ -109,7 +109,9 @@ export class Queue extends Scene
 
         }
         catch (error) {
-            this.queueText.setText("Failed to enter queue");
+            if (this.scene && this.scene.isActive()) {
+                this.queueText.setText("Failed to enter queue");
+            }
             console.error(error);
         }
     }
@@ -207,7 +209,12 @@ export class Queue extends Scene
 
                 // Check if this player is the last player to ready
                 this.lastReady = response.data.lastReady;
+                this.gameStartText.setText('All players are ready. Starting game...');
+                
+                // Wait 1 second before starting game
+                await new Promise(resolve => setTimeout(resolve, 1000));
                 if (this.lastReady) {
+                    this.gameStarted = true;
                     this.startGame();
                 }
 

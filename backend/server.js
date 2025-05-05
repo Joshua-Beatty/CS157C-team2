@@ -293,7 +293,11 @@ app.post('/startgame', async (req, res) => {
         
     }
     // Create word list
-    await client.rPush(`game:${gameId}:wordList`, ...wordList);
+    console.log(wordList);
+    for (let i = 0; i < wordList.length; i++ ) {
+        await client.rPush(`game:${gameId}:wordList`, wordList[i]);
+    }
+    
 
     // Set game:gameId:ready to 1 after creating game, for other users to join game
     await client.set(`game:${gameId}:ready`, 1);
@@ -313,9 +317,13 @@ app.post('/updategame', async (req, res) => {
     // Update wordcount in Redis database
     await client.zAdd(`game:${gameId}:wordCounts`, [{score: wordCount, value: user}])
     // Update wordList in Redis database
-    await client.rPush(`game:${gameId}:wordList`, ...newWords);
+    for (let i = 0; i < newWords.length; i++ ) {
+        await client.rPush(`game:${gameId}:wordList`, newWords[i]);
+    }
     // Update zoneList in Redis database
-    await client.rPush(`game:${gameId},zoneList`, ...newZoneWords);
+    for (let i = 0; i < newZoneWords.length; i++ ) {
+        await client.rPush(`game:${gameId}:zoneList`, newZoneWords[i]);
+    }
     // If player's HP is 0, add them to the list of eliminated players
     if (hp == 0) {
         await client.rPush(`game:${gameId}:eliminated`, user);
@@ -329,14 +337,15 @@ app.post('/fetchgame', async (req, res) => {
     const { gameId } = req.body;
 
     // Get player HPs with scores (descending order)
-    const playerHps = await client.zRevRange(`game:${gameId}:hps`, 0, -1, {WITHSCORES: true});
+    const playerHps = await client.zRange(`game:${gameId}:hps`, 0, -1, {WITHSCORES: true});
     // Get player word counts with scores (descending order)
-    const playerWordCounts = await client.zRevRange(`game:${gameId}:wordcounts`, 0, -1, {WITHSCORES: true});
+    const playerWordCounts = await client.zRange(`game:${gameId}:wordCounts`, 0, -1, {WITHSCORES: true});
     // Get word list
     const wordList = await client.lRange(`game:${gameId}:wordList`, 0, -1);
     // Get zone list (default is empty if no zonelist is found)
     const zoneList = await client.lRange(`game:${gameId}:zoneList`, 0, -1);
 
+    //console.log("word list:" + wordList)
     return res.json({ success: true, playerHps: playerHps, playerWordCounts: playerWordCounts, 
         wordList: wordList, zoneList: zoneList});
 
