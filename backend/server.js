@@ -388,7 +388,9 @@ app.post('/checkzone', async (req, res) => {
                 await client.rPush(`game:${gameId}:eliminated`, user);
                 
                 // Add kill to leader's score
-                const leader = await client.zRange(`game:${gameId}:wordCounts`, -1, -1, {REV: true});
+                // Get player with highest word count
+                const leader = await client.zRange(`game:${gameId}:wordCounts`, 0, 0, {REV: true});
+                // If such player exists
                 if (leader.length > 0) {
                     const leaderKills = await client.get(`game:${gameId}:${leader[0]}:kills`) || 0;
                     await client.set(`game:${gameId}:${leader[0]}:kills`, parseInt(leaderKills) + 1);

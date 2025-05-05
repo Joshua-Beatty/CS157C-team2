@@ -74,7 +74,7 @@ export class Game extends Scene
 
         EventBus.emit('current-scene-ready', this);
 
-        // Create Text to display words
+        // Create wordsText to display current words to type
         this.wordsText = this.add.text(512, 200, this.wordList.join(' '), {
             fontFamily: 'Consolas', fontSize: '20px', color: '#ffffff', // Consolas is monospaced
             stroke: '#000000', strokeThickness: 4,
@@ -82,6 +82,7 @@ export class Game extends Scene
             wordWrap: {width: 800, useAdvancedWrap: true }
         }).setOrigin(0.5).setDepth(100);
 
+        // Create inputText to display this player's current input
         this.inputText = this.add.text(512, 400, '', {
             fontFamily: 'Consolas', fontSize: '20px', color: '#ffffff',
             stroke: '#000000', strokeThickness: 4,
@@ -114,12 +115,12 @@ export class Game extends Scene
         }).setDepth(100);
         
         // Update game status every second
-        this.time.addEvent({
-            delay: 1000,
-            callback: this.checkZoneStatus,
-            callbackScope: this,
-            loop: true
-        });
+        // this.time.addEvent({
+        //     delay: 1000,
+        //     callback: this.checkZoneStatus,
+        //     callbackScope: this,
+        //     loop: true
+        // });
 
         // Access keyboard input
         const keyboard = this.input.keyboard as Phaser.Input.Keyboard.KeyboardPlugin;
@@ -204,7 +205,7 @@ export class Game extends Scene
 
         // Game has started, so fetch it
         try {
-            
+
             // Enter loop to fetch game status
             await this.fetchGameStatusWhile();
 
@@ -267,10 +268,17 @@ export class Game extends Scene
             this.playerScores = response.data.playerScores;
             this.wordList = response.data.wordList;
             this.zoneList = response.data.zoneList;
-            
-            // Update display
-            await this.updatePersonalDisplay();
+
+            // Check zone status
             this.checkZoneStatus();
+            
+
+
+
+
+            // Update display after everything is fetched
+            await this.updatePersonalDisplay();
+            
         }
         catch (error) {
             console.log(error);
@@ -285,7 +293,7 @@ export class Game extends Scene
     }
 
 
-    handleKeyPress(key: string) {
+    async handleKeyPress(key: string) {
         if (this.currentWordIndex < this.wordList.length) {
             if (key === 'Backspace') {
                 // Remove most recent key if user presses backspace
@@ -306,7 +314,7 @@ export class Game extends Scene
                     this.currentWordIndex++;
                     
                     // Update leader status if player might be leading
-                    if (this.isPlayerLeading()) {
+                    if (await this.isPlayerLeading()) {
                         this.updateLeaderStatus();
                     }
     
@@ -326,6 +334,11 @@ export class Game extends Scene
         }
     }
 
+    // Update game status in Redis database based on user input
+    async updateGameStatus() {
+
+    }
+
 
     completed() {
         this.add.text(512, 700, 'You have finished typing all the words!', {
@@ -337,18 +350,18 @@ export class Game extends Scene
     }
 
     // Check if player is in zone
-    checkZoneStatus() {
+    async checkZoneStatus() {
         if (this.gameStarted && !this.gameOver) {
             // If player is leader, update leader status and zone
-            if (this.currentWordIndex > 0 && this.isPlayerLeading()) {
+            if (this.currentWordIndex > 0 && await this.isPlayerLeading()) {
                 this.updateLeaderStatus();
             }
             
             // Check if current word is in zone
-            this.checkIfInZone();
+            await this.checkIfInZone();
             
             // Update display
-            this.updateZoneDisplay();
+            await this.updateZoneDisplay();
         }
     }
 
@@ -517,22 +530,34 @@ export class Game extends Scene
     }
 
     // Check if player is leading
-    isPlayerLeading() {
+    async isPlayerLeading() {
         if (!this.playerScores) return false;
-        
-        const currentUser = this.userId;
-        let maxScore = 0;
-        let leadPlayer = null;
-        
-        // Find player with highest score
-        for (const [player, score] of Object.entries(this.playerScores)) {
-            if (score > maxScore) {
-                maxScore = score;
-                leadPlayer = player;
+
+        // Fetch current user
+        try {
+            const response = await axios.get("http://localhost:5000/user", {
+                withCredentials: true
+            })
+            const currentUser = response.data.user;
+            let maxScore = 0;
+            let leadPlayer = null;
+            
+            // Find player with highest score
+            for (const [player, score] of Object.entries(this.playerScores)) {
+                if (score > maxScore) {
+                    maxScore = score;
+                    leadPlayer = player;
+                }
             }
+            
+            return currentUser === leadPlayer;
+        }
+        catch (error)
+        {
+            console.log(error);
         }
         
-        return currentUser === leadPlayer;
+        
     }
 
     // Update leader status and zone position
