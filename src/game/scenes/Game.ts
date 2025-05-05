@@ -17,7 +17,7 @@ export class Game extends Scene
     gameId: string | null = null;
 
     // Keep track of if game started (wait for last readied player to create game)
-    gameStarted: boolean | null = null;
+    gameStarted: boolean = false;
     // Keep track of game end (ends when only 1 player alive)
     gameOver: boolean | null = null
 
@@ -52,6 +52,288 @@ export class Game extends Scene
     constructor ()
     {
         super('Game');
+    }
+
+    // First thing to run when Game scene is created
+    preload () {
+        // Start game from backend
+        this.load.on('complete', async () => {
+            await this.startGameFromBackend();
+        })
+
+    }
+
+    create ()
+    {
+        this.camera = this.cameras.main;
+        this.camera.setBackgroundColor(0x00ff00);
+
+        this.background = this.add.image(512, 384, 'background');
+        this.background.setAlpha(0.5);
+        this.background.setDepth(0);
+
+        EventBus.emit('current-scene-ready', this);
+
+        // Create Text to display words
+        this.wordsText = this.add.text(512, 200, this.wordList.join(' '), {
+            fontFamily: 'Consolas', fontSize: '20px', color: '#ffffff', // Consolas is monospaced
+            stroke: '#000000', strokeThickness: 4,
+            align: 'center',
+            wordWrap: {width: 800, useAdvancedWrap: true }
+        }).setOrigin(0.5).setDepth(100);
+
+        this.inputText = this.add.text(512, 400, '', {
+            fontFamily: 'Consolas', fontSize: '20px', color: '#ffffff',
+            stroke: '#000000', strokeThickness: 4,
+            align: 'center',
+            wordWrap: {width: 800, useAdvancedWrap: true }
+        }).setOrigin(0.5).setDepth(100);
+
+        // Create health display
+        this.healthText = this.add.text(100, 50, 'Health: 5', {
+            fontFamily: 'Consolas', fontSize: '20px', color: '#ffffff',
+            stroke: '#000000', strokeThickness: 4
+        }).setDepth(100);
+        
+        // Create zone status display
+        this.zoneText = this.add.text(100, 80, 'Zone: Safe', {
+            fontFamily: 'Consolas', fontSize: '20px', color: '#00ff00',
+            stroke: '#000000', strokeThickness: 4
+        }).setDepth(100);
+        
+        // Create kills display
+        this.killsText = this.add.text(900, 50, 'Kills: 0', {
+            fontFamily: 'Consolas', fontSize: '20px', color: '#ffffff',
+            stroke: '#000000', strokeThickness: 4
+        }).setDepth(100);
+        
+        // Create leader status
+        this.leaderText = this.add.text(900, 80, '', {
+            fontFamily: 'Consolas', fontSize: '20px', color: '#ffff00',
+            stroke: '#000000', strokeThickness: 4
+        }).setDepth(100);
+        
+        // Update game status every second
+        this.time.addEvent({
+            delay: 1000,
+            callback: this.checkZoneStatus,
+            callbackScope: this,
+            loop: true
+        });
+
+        // Access keyboard input
+        const keyboard = this.input.keyboard as Phaser.Input.Keyboard.KeyboardPlugin;
+
+        keyboard.on('keydown', (event: KeyboardEvent) => {
+            // Call function to handle key press
+            this.handleKeyPress(event.key);
+        });
+
+    }
+
+
+    // Upon game start, fetch game info from backend
+    async startGameFromBackend() {
+        // Game is not started yet
+        // The last readied user will start it
+        if (!this.gameStarted) {
+            try {
+                // Retrieve last readied user
+                const response = await axios.get("http://localhost:3000/lastready", {
+                    withCredentials: true
+                });
+    
+                // Set this.gameId
+                this.gameId = response.data.gameId;
+    
+                // Retrieve this current user
+                const userResponse = await axios.get("http://localhost:3000/user", {
+                    withCredentials: true
+                });
+    
+                // Check if this current user == last readied user
+                if (userResponse.data.userId == response.data.lastReady) {
+    
+                    // Last readied user will generate first 10 words randomly using this.wordBank
+                    this.wordList = this.wordBank.sort(() => 0.5 - Math.random()).slice(0, 10);
+
+    
+                    // Call startgame endpoint with created wordList
+                    const gameResponse = await axios.post("http://localhost:3000/startgame", {
+                        gameId: this.gameId,
+                        wordList: this.wordList
+                    }, {
+                        withCredentials: true
+                    });
+    
+                    if (gameResponse.data.success) {
+                        // Last readied user's game starts
+                        this.gameStarted = true;
+                        // Enter fetchGameStatus loop
+                        await this.fetchGameStatusWhile();
+                    }
+    
+    
+    
+                }
+                // Not readied user
+                else {
+                    // Wait for game data to appear in database
+                    await this.waitGameStartWhile();
+    
+    
+                }
+            }
+            catch (error) {
+                console.log(error);
+            }
+        }
+        
+    }
+
+    // Loop for checking if game is started (for all players besides last readied player)
+    async waitGameStartWhile() {
+
+        // Wait for game while game is not started
+        while (!this.gameStarted) {
+            await this.waitGameStart();
+
+            // Check for game ready every 1 second
+            await new Promise(resolve => setTimeout(resolve, 1000));
+        }
+
+        // Game has started, so fetch it
+        try {
+            
+            // Enter loop to fetch game status
+            await this.fetchGameStatusWhile();
+
+
+        }
+        catch (error) {
+            console.log(error);
+        }
+
+    }
+
+    // Called per loop of waitGameStartWhile()
+    async waitGameStart() {
+        try {
+            // Check if game is ready in Redis database, pass gameId to backend
+            const response = await axios.post("http://localhost:3000/checkgameready", {
+                gameId: this.gameId
+            }, {
+                withCredentials: true
+            });
+
+
+            if (response.data.gameReady == true) {
+                this.gameStarted = true;
+            }
+
+        }
+        catch (error) {
+            console.log(error);
+        }
+    }
+
+    // Loop for fetching  game status (updating display)
+    async fetchGameStatusWhile() {
+        // Update game status as long as game is not over
+        while (!this.gameOver) {
+            await this.fetchGameStatus();
+
+            // Update game status every 1 second
+            await new Promise(resolve => setTimeout(resolve, 1000));
+        }
+
+        // IF GAME IS OVER LOGIC HERE!
+        // ...
+
+
+    }
+
+    // Called per loop of fetchGameStatusWhile()
+    async fetchGameStatus() {
+        try {
+            const response = await axios.post("http://localhost:3000/fetchgame", {
+                gameId: this.gameId
+            }, {
+                withCredentials: true
+            });
+    
+            // Update fields
+            this.playerHps = response.data.playerHps;
+            this.playerScores = response.data.playerScores;
+            this.wordList = response.data.wordList;
+            this.zoneList = response.data.zoneList;
+            
+            // Update display
+            await this.updatePersonalDisplay();
+            this.checkZoneStatus();
+        }
+        catch (error) {
+            console.log(error);
+        }
+    }
+
+    // Update personal view of words
+    async updatePersonalDisplay() {
+        this.wordsText.setText(this.wordList.join(' '));
+        // MORE TO ADD (e.g. playerHps, playerScores, etc...)
+        // ...
+    }
+
+
+    handleKeyPress(key: string) {
+        if (this.currentWordIndex < this.wordList.length) {
+            if (key === 'Backspace') {
+                // Remove most recent key if user presses backspace
+                // Do not remove space (makes sure user doesn't remove already completed words)
+                if (this.wordsInput[this.wordsInput.length - 1] !== ' ') {
+                    this.wordsInput = this.wordsInput.slice(0, -1);
+                }
+            }
+            else if (key === ' ') {
+                // Check if word is correct if user presses space
+                
+                // Get most recent space-separated word, or '' if no words
+                const currentWord = this.wordsInput.split(' ').pop() || '';
+    
+                // Word is correct
+                if (currentWord === this.wordList[this.currentWordIndex]) {
+                    this.wordsInput += key;
+                    this.currentWordIndex++;
+                    
+                    // Update leader status if player might be leading
+                    if (this.isPlayerLeading()) {
+                        this.updateLeaderStatus();
+                    }
+    
+                    // Check if user is done
+                    if (this.currentWordIndex === this.wordList.length) {
+                        this.completed();
+                    }
+                }
+            }
+            // Only accept alphanumeric characters as user input
+            else if (key.length === 1 && /^[a-zA-Z]$/.test(key)) {
+                // Add this key to typedText
+                this.wordsInput += key;
+            }
+    
+            this.inputText.setText(this.wordsInput);
+        }
+    }
+
+
+    completed() {
+        this.add.text(512, 700, 'You have finished typing all the words!', {
+            fontFamily: 'Consolas', fontSize: '20px', color: '#ffffff',
+            stroke: '#000000', strokeThickness: 4,
+            align: 'center',
+            wordWrap: {width: 800, useAdvancedWrap: true }
+        }).setOrigin(0.5).setDepth(100);
     }
 
     // Check if player is in zone
@@ -308,288 +590,6 @@ export class Game extends Scene
             fontFamily: 'Consolas', fontSize: '32px', color: '#ff0000',
             stroke: '#000000', strokeThickness: 4,
             align: 'center'
-        }).setOrigin(0.5).setDepth(100);
-    }
-
-    preload () {
-        // Get game from backend
-        this.load.on('complete', async () => {
-            await this.startGameFromBackend();
-        })
-
-    }
-
-    create ()
-    {
-        this.camera = this.cameras.main;
-        this.camera.setBackgroundColor(0x00ff00);
-
-        this.background = this.add.image(512, 384, 'background');
-        this.background.setAlpha(0.5);
-        this.background.setDepth(0);
-
-        EventBus.emit('current-scene-ready', this);
-
-        // Create Text to display words
-        this.wordsText = this.add.text(512, 200, this.wordList.join(' '), {
-            fontFamily: 'Consolas', fontSize: '20px', color: '#ffffff', // Consolas is monospaced
-            stroke: '#000000', strokeThickness: 4,
-            align: 'center',
-            wordWrap: {width: 800, useAdvancedWrap: true }
-        }).setOrigin(0.5).setDepth(100);
-
-        this.inputText = this.add.text(512, 400, '', {
-            fontFamily: 'Consolas', fontSize: '20px', color: '#ffffff',
-            stroke: '#000000', strokeThickness: 4,
-            align: 'center',
-            wordWrap: {width: 800, useAdvancedWrap: true }
-        }).setOrigin(0.5).setDepth(100);
-
-        // Create health display
-        this.healthText = this.add.text(100, 50, 'Health: 5', {
-            fontFamily: 'Consolas', fontSize: '20px', color: '#ffffff',
-            stroke: '#000000', strokeThickness: 4
-        }).setDepth(100);
-        
-        // Create zone status display
-        this.zoneText = this.add.text(100, 80, 'Zone: Safe', {
-            fontFamily: 'Consolas', fontSize: '20px', color: '#00ff00',
-            stroke: '#000000', strokeThickness: 4
-        }).setDepth(100);
-        
-        // Create kills display
-        this.killsText = this.add.text(900, 50, 'Kills: 0', {
-            fontFamily: 'Consolas', fontSize: '20px', color: '#ffffff',
-            stroke: '#000000', strokeThickness: 4
-        }).setDepth(100);
-        
-        // Create leader status
-        this.leaderText = this.add.text(900, 80, '', {
-            fontFamily: 'Consolas', fontSize: '20px', color: '#ffff00',
-            stroke: '#000000', strokeThickness: 4
-        }).setDepth(100);
-        
-        // Update game status every second
-        this.time.addEvent({
-            delay: 1000,
-            callback: this.checkZoneStatus,
-            callbackScope: this,
-            loop: true
-        });
-
-        // Access keyboard input
-        const keyboard = this.input.keyboard as Phaser.Input.Keyboard.KeyboardPlugin;
-
-        keyboard.on('keydown', (event: KeyboardEvent) => {
-            // Call function to handle key press
-            this.handleKeyPress(event.key);
-        });
-
-    }
-
-
-    // Upon game start, fetch game info from backend
-    async startGameFromBackend() {
-        // Get player who is last to ready
-        if (!this.gameStarted) {
-            try {
-                const response = await axios.get("http://localhost:3000/lastready", {
-                    withCredentials: true
-                });
-    
-                // Set this.gameId
-                this.gameId = response.data.gameId;
-    
-                const userResponse = await axios.get("http://localhost:3000/user", {
-                    withCredentials: true
-                });
-    
-                // This user is the one who readied up last
-                if (userResponse.data.userId == response.data.lastReady) {
-    
-                    // Generate first 10 words randomly using this.wordBank
-                    this.wordList = this.wordBank.sort(() => 0.5 - Math.random()).slice(0, 10);
-
-                    // Update wordsText
-                    this.wordsText.setText(this.wordList.join(' '));
-                    
-    
-                    // Call startgame endpoint with created wordList
-                    const gameResponse = await axios.post("http://localhost:3000/startgame", {
-                        gameId: this.gameId,
-                        wordList: this.wordList
-                    }, {
-                        withCredentials: true
-                    });
-    
-                    if (gameResponse.data.success) {
-                        this.gameStarted = true;
-                        await this.updateGameStatusWhile();
-                    }
-    
-    
-    
-                }
-                else {
-                    // wait for game data to appear in database
-                    await this.waitGameStartWhile();
-    
-    
-                }
-            }
-            catch (error) {
-                console.log(error);
-            }
-        }
-        
-    }
-
-    async waitGameStartWhile() {
-
-        // Wait for game while game is not started
-        while (!this.gameStarted) {
-            await this.waitGameStart();
-
-            // Check for game ready every 1 second
-            await new Promise(resolve => setTimeout(resolve, 1000));
-        }
-
-        // Game has started, so fetch it
-        try {
-
-            const response = await axios.post("http://localhost:3000/fetchgame", {
-                gameId: this.gameId
-            }, {
-                withCredentials: true
-            });
-
-            // Populate wordList
-            this.wordList = response.data.wordList;
-            // Populate zoneList
-            this.zoneList = response.data.zoneList;
-
-            // Update wordsText
-            this.wordsText.setText(this.wordList.join(' '));
-
-            await this.updateGameStatusWhile();
-
-
-        }
-        catch (error) {
-            console.log(error);
-        }
-
-    }
-
-    async waitGameStart() {
-        try {
-            const response = await axios.post("http://localhost:3000/checkgameready", {
-                gameId: this.gameId
-            }, {
-                withCredentials: true
-            });
-
-            if (response.data.gameReady == true) {
-                this.gameStarted = true;
-            }
-
-        }
-        catch (error) {
-            console.log(error);
-        }
-    }
-
-
-    async updateGameStatusWhile() {
-        // Update game status as long as game is not over
-        while (!this.gameOver) {
-            await this.updateGameStatus();
-
-            // Update game status every 1 second
-            await new Promise(resolve => setTimeout(resolve, 1000));
-        }
-
-
-    }
-
-
-    async updateGameStatus() {
-        try {
-            const response = await axios.post("http://localhost:3000/fetchgame", {
-                gameId: this.gameId
-            }, {
-                withCredentials: true
-            });
-    
-            // Update fields
-            this.playerHps = response.data.playerHps;
-            this.playerScores = response.data.playerScores;
-            this.wordList = response.data.wordList;
-            this.zoneList = response.data.zoneList;
-            
-            // Update display
-            await this.updatePersonalDisplay();
-            this.checkZoneStatus();
-        }
-        catch (error) {
-            console.log(error);
-        }
-    }
-
-    // Update personal view of words
-    async updatePersonalDisplay() {
-        this.wordsText.setText(this.wordList.join(' '));
-    }
-
-
-    handleKeyPress(key: string) {
-        if (this.currentWordIndex < this.wordList.length) {
-            if (key === 'Backspace') {
-                // Remove most recent key if user presses backspace
-                // Do not remove space (makes sure user doesn't remove already completed words)
-                if (this.wordsInput[this.wordsInput.length - 1] !== ' ') {
-                    this.wordsInput = this.wordsInput.slice(0, -1);
-                }
-            }
-            else if (key === ' ') {
-                // Check if word is correct if user presses space
-                
-                // Get most recent space-separated word, or '' if no words
-                const currentWord = this.wordsInput.split(' ').pop() || '';
-    
-                // Word is correct
-                if (currentWord === this.wordList[this.currentWordIndex]) {
-                    this.wordsInput += key;
-                    this.currentWordIndex++;
-                    
-                    // Update leader status if player might be leading
-                    if (this.isPlayerLeading()) {
-                        this.updateLeaderStatus();
-                    }
-    
-                    // Check if user is done
-                    if (this.currentWordIndex === this.wordList.length) {
-                        this.completed();
-                    }
-                }
-            }
-            // Only accept alphanumeric characters as user input
-            else if (key.length === 1 && /^[a-zA-Z]$/.test(key)) {
-                // Add this key to typedText
-                this.wordsInput += key;
-            }
-    
-            this.inputText.setText(this.wordsInput);
-        }
-    }
-
-
-    completed() {
-        this.add.text(512, 700, 'You have finished typing all the words!', {
-            fontFamily: 'Consolas', fontSize: '20px', color: '#ffffff',
-            stroke: '#000000', strokeThickness: 4,
-            align: 'center',
-            wordWrap: {width: 800, useAdvancedWrap: true }
         }).setOrigin(0.5).setDepth(100);
     }
 

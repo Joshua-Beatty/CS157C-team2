@@ -240,8 +240,10 @@ app.post('/queuestatus', async (req, res) => {
 
 // Last ready endpoint (to check which player starts the game)
 app.get('/lastready', async (req, res) => {
+    // Get current queueId
     const queueId = await client.get("queue:counter");
 
+    // Get lastReady from that queueId
     const userLastReady = await client.get(`queue:${queueId}:lastready`);
 
     // Game ID is set to current Queue ID
@@ -256,16 +258,13 @@ app.get('/user', (req, res) => {
 })
 
 
-// Start game endpoint (only for last player to ready up)
+// Start game endpoint (only for last readied player)
 app.post('/startgame', async (req, res) => {
+    // Get gameId and wordList from last readied player
     const { gameId, wordList } = req.body;
 
-    // Close the queue
-    await client.set("queue:isOpen", 0);
+    // Increment queue:counter
     await client.incr("queue:counter");
-
-    // Set game ID counter in Redis databse
-    await client.set("game:counter", gameId);
 
     // Get all players from queue
     const players = await client.zRange(`queue:${gameId}`, 0, -1);
@@ -274,10 +273,10 @@ app.post('/startgame', async (req, res) => {
         const player = players[i];
         // Push player to list of players
         await client.lPush(`game:${gameId}`, player);
-        // Push player to sorted set for player HPs
-        await client.zAdd(`game:${gameId}:hps`, [{score: 0, value: req.session.user}]);
-        // Create sorted set for player word count
-        await client.zAdd(`game:${gameId}:wordCounts`, [{score: 0, value: req.session.user}]);
+        // Push player to sorted set for player HPs (starting HP is 5)
+        await client.zAdd(`game:${gameId}:hps`, [{score: 5, value: player}]);
+        // Create sorted set for player word count (starting wordCount is 0)
+        await client.zAdd(`game:${gameId}:wordCounts`, [{score: 0, value: player}]);
         
     }
     // Create word list
@@ -287,10 +286,25 @@ app.post('/startgame', async (req, res) => {
     }
     
 
-    // Set game:gameId:ready to 1 after creating game, for other users to join game
+    // Set game:<gameId>:ready to 1 after creating game, for other users to join game
     await client.set(`game:${gameId}:ready`, 1);
     return res.json({success: true});
 
+})
+
+// Check game ready (for all players other than last readied player)
+app.post('/checkgameready', async (req, res) => {
+    const { gameId } = req.body;
+
+    // Check if this gameId is ready
+    const gameReady = await client.get(`game:${gameId}:ready`);
+    // 1 for ready, 0 for not ready
+    if (gameReady === '1') {
+        return res.json({ success: true, gameReady: true});
+    }
+    else {
+        return res.json({ success: true, gameReady: false});
+    }
 })
 
 // Update game endpoint (each user uses this to update their status in game)
@@ -324,9 +338,9 @@ app.post('/updategame', async (req, res) => {
 app.post('/fetchgame', async (req, res) => {
     const { gameId } = req.body;
 
-    // Get player HPs with scores (descending order)
+    // Get player HPs with scores (ascending order)
     const playerHps = await client.zRange(`game:${gameId}:hps`, 0, -1, {WITHSCORES: true});
-    // Get player word counts with scores (descending order)
+    // Get player word counts with scores (ascending order)
     const playerWordCounts = await client.zRange(`game:${gameId}:wordCounts`, 0, -1, {WITHSCORES: true});
     // Get word list
     const wordList = await client.lRange(`game:${gameId}:wordList`, 0, -1);
@@ -338,26 +352,6 @@ app.post('/fetchgame', async (req, res) => {
         wordList: wordList, zoneList: zoneList});
 
 })
-
-
-app.post('/checkgameready', async (req, res) => {
-    const { gameId } = req.body;
-
-    // Check if this gameId is ready
-    const gameReady = await client.get(`game:${gameId}:ready`);
-    if (gameReady) {
-        return res.json({ success: true, gameReady: true});
-    }
-    else {
-        return res.json({ success: true, gameReady: false});
-    }
-})
-
-
-// Join game endpoint (for all other players than last player to ready up)
-app.post('/joingame', async (req, res) => {
-
-});
 
 
 // Gets zone list from database
