@@ -1,48 +1,386 @@
+/* Tetris-themed CSS */
+@import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
+
+:root {
+  --tetris-black: #000000;
+  --tetris-bg: #001029;
+  --tetris-grid: #001841;
+  --tetris-i: #00f0f0; /* I piece - cyan */
+  --tetris-j: #0000f0; /* J piece - blue */
+  --tetris-l: #f0a000; /* L piece - orange */
+  --tetris-o: #f0f000; /* O piece - yellow */
+  --tetris-s: #00f000; /* S piece - green */
+  --tetris-t: #a000f0; /* T piece - purple */
+  --tetris-z: #f00000; /* Z piece - red */
+  --tetris-border: #ffffff;
+  --tetris-text: #ffffff;
+}
+
 body {
-    margin: 0;
-    padding: 0;
-    color: rgba(255, 255, 255, 0.87);
-    background-color: #000000; 
-    font-family: Arial, Helvetica, sans-serif;
+  margin: 0;
+  padding: 0;
+  color: var(--tetris-text);
+  background-color: var(--tetris-bg);
+  background-image: 
+    linear-gradient(var(--tetris-grid) 1px, transparent 1px),
+    linear-gradient(90deg, var(--tetris-grid) 1px, transparent 1px);
+  background-size: 20px 20px;
+  font-family: 'Press Start 2P', cursive;
 }
 
 #app {
-    width: 100%;
-    height: 100vh;
-    overflow: hidden;
-    display: flex;
-    justify-content: center;
-    align-items: center;
+  width: 100%;
+  height: 100vh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  justify-content: center; /* Center vertically */
+  align-items: center; /* Center horizontally */
+}
+
+h1, h2 {
+  text-shadow: 3px 3px 0 var(--tetris-black);
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  color: var(--tetris-i);
+}
+
+.game-title {
+  text-align: center;
+  margin-bottom: 20px;
+}
+
+.type99-logo {
+  font-family: 'Press Start 2P', cursive;
+  font-weight: bold;
+  display: inline-block;
+  margin: 0 auto;
+  text-shadow: 4px 4px 0 var(--tetris-black);
+  background-color: rgba(0, 0, 0, 1);
+  padding: 15px;
+  border: 4px solid var(--tetris-border);
+  box-shadow: 0 0 20px rgba(0, 240, 240, 0.5);
+  text-align: center;
+  width: auto;
+  max-width: 260px;
+}
+
+.type99-logo .type-text {
+  font-size: 3rem;
+  letter-spacing: 4px;
+  display: block;
+  text-align: center;
+}
+
+.type99-logo .num-text {
+  font-size: 3rem;
+  letter-spacing: 4px;
+  display: block;
+  text-align: center;
+  margin-top: 5px;
+}
+
+input {
+  background-color: var(--tetris-black);
+  border: 2px solid var(--tetris-border);
+  color: var(--tetris-text);
+  padding: 10px;
+  font-family: 'Press Start 2P', cursive;
+  font-size: 0.8em;
+  margin: 5px 0;
+  width: 200px;
 }
 
 .spritePosition {
-    margin: 10px 0 0 10px;
-    font-size: 0.8em;
+  margin: 10px 0 0 10px;
+  font-size: 0.8em;
 }
 
 .button {
-    width: 140px;
-    margin: 10px;
-    padding: 10px;
-    background-color: #000000;
-    color: rgba(255, 255, 255, 0.87);
-    border: 1px solid rgba(255, 255, 255, 0.87);
-    cursor: pointer;
-    transition: all 0.3s;
+  width: 140px;
+  margin: 10px auto;
+  padding: 12px;
+  background-color: var(--tetris-black);
+  color: var(--tetris-text);
+  border: 3px solid var(--tetris-i);
+  cursor: pointer;
+  transition: all 0.2s;
+  font-family: 'Press Start 2P', cursive;
+  font-size: 0.7em;
+  text-transform: uppercase;
+  position: relative;
+  overflow: hidden;
+  display: block;
+  text-align: center;
+}
 
-    &:hover {
-        border: 1px solid #0ec3c9;
-        color: #0ec3c9;
-    }
+.button:hover {
+  border-color: var(--tetris-s);
+  color: var(--tetris-s);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 0 var(--tetris-black);
+}
 
-    &:active {
-        background-color: #0ec3c9;
-    }
+.button:active {
+  background-color: var(--tetris-s);
+  color: var(--tetris-black);
+  transform: translateY(2px);
+  box-shadow: none;
+}
 
-    /* Disabled styles */
-    &:disabled {
-        cursor: not-allowed;
-        border: 1px solid rgba(255, 255, 255, 0.3);
-        color: rgba(255, 255, 255, 0.3);
-    }
+.button:disabled {
+  cursor: not-allowed;
+  border-color: rgba(255, 255, 255, 0.3);
+  color: rgba(255, 255, 255, 0.3);
+  transform: none;
+  box-shadow: none;
+}
+
+/* Specific button styles for the game control panel */
+.queue-button {
+  border-color: var(--tetris-s);
+}
+
+.queue-button:hover {
+  background-color: var(--tetris-s);
+  color: var(--tetris-black);
+}
+
+.ready-button {
+  border-color: var(--tetris-j);
+}
+
+.ready-button:hover {
+  background-color: var(--tetris-j);
+  color: var(--tetris-black);
+}
+
+.start-button {
+  border-color: var(--tetris-l);
+}
+
+.start-button:hover {
+  background-color: var(--tetris-l);
+  color: var(--tetris-black);
+}
+
+.back-button {
+  border-color: var(--tetris-z);
+}
+
+.back-button:hover {
+  background-color: var(--tetris-z);
+  color: var(--tetris-black);
+}
+
+/* Tetris container styles */
+.tetris-container {
+  border: 4px solid var(--tetris-border);
+  padding: 20px;
+  background-color: rgba(0, 0, 0, 0.8);
+  box-shadow: 0 0 20px rgba(0, 240, 240, 0.5);
+  max-width: 500px;
+  margin: 0 auto;
+  font-family: 'Press Start 2P', cursive;
+}
+
+/* Game controls */
+.control-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  align-items: center;
+  background-color: rgba(0, 0, 0, 0.9);
+  padding: 20px;
+  border: 4px solid var(--tetris-border);
+  border-left: 4px solid var(--tetris-i);
+  border-top: 4px solid var(--tetris-j);
+  border-right: 4px solid var(--tetris-l);
+  border-bottom: 4px solid var(--tetris-z);
+  min-width: 200px;
+  height: fit-content;
+}
+
+/* Login/Register styling */
+.auth-container {
+  text-align: center;
+  margin-top: 50px;
+  background-color: rgba(0, 0, 0, 0.8);
+  padding: 30px;
+  border: 4px solid var(--tetris-border);
+  box-shadow: 0 0 20px rgba(0, 240, 240, 0.5);
+  max-width: 340px;
+  margin: 50px auto;
+}
+
+/* Profile page styling */
+.profile-container {
+  text-align: center;
+  margin-top: 50px;
+  background-color: rgba(0, 0, 0, 0.8);
+  padding: 30px;
+  border: 4px solid var(--tetris-border);
+  box-shadow: 0 0 20px rgba(0, 240, 240, 0.5);
+  max-width: 500px;
+  margin: 50px auto;
+}
+
+.logout-button {
+  position: absolute;
+  top: 20px;
+  right: 20px;
+  background-color: var(--tetris-z);
+  color: var(--tetris-text);
+  border: 2px solid var(--tetris-border);
+  padding: 8px 12px;
+  font-family: 'Press Start 2P', cursive;
+  font-size: 0.7em;
+  cursor: pointer;
+}
+
+/* Homepage styling */
+.home-container {
+  text-align: center;
+  margin-top: 50px;
+}
+
+.home-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+  margin-top: 30px;
+  align-items: center;
+}
+
+.home-button {
+  width: 180px;
+  padding: 15px;
+  background-color: var(--tetris-black);
+  color: var(--tetris-text);
+  border: 3px solid;
+  cursor: pointer;
+  font-family: 'Press Start 2P', cursive;
+  font-size: 0.8em;
+  text-transform: uppercase;
+  text-decoration: none;
+  display: inline-block;
+}
+
+.login-button {
+  border-color: var(--tetris-i);
+}
+
+.login-button:hover {
+  background-color: var(--tetris-i);
+  color: var(--tetris-black);
+}
+
+.register-button {
+  border-color: var(--tetris-s);
+}
+
+.register-button:hover {
+  background-color: var(--tetris-s);
+  color: var(--tetris-black);
+}
+
+/* Animation for tetris pieces falling */
+@keyframes falling {
+  0% {
+    transform: translateY(-20px) rotate(0deg);
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(100vh) rotate(360deg);
+    opacity: 0;
+  }
+}
+
+.tetris-bg-animation {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: -1;
+}
+
+.tetris-piece {
+  position: absolute;
+  width: 40px;
+  height: 40px;
+  opacity: 0.2;
+  animation: falling linear infinite;
+}
+
+/* Center the entire game container on screen */
+.game-container {
+  width: 100%;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  justify-content: center; /* Center vertically */
+  align-items: center; /* Center horizontally */
+  background-color: transparent;
+  padding: 20px;
+}
+
+/* Game header with logo */
+.game-header {
+  margin-bottom: 30px;
+  text-align: center;
+}
+
+/* Game content layout */
+.game-content {
+  display: flex;
+  justify-content: center;
+  align-items: center; /* Center game screen and control panel */
+  gap: 20px;
+  margin: 0 auto;
+  max-width: 900px;
+}
+
+/* Smaller game screen */
+.game-screen {
+  border: 4px solid var(--tetris-border);
+  background-color: #2980e9; /* Tetris blue background */
+  box-shadow: 0 0 20px rgba(0, 240, 240, 0.5);
+  overflow: hidden;
+  width: 600px;
+  height: 450px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+
+/* Ensure the canvas scales properly within the smaller container */
+.game-screen canvas {
+  width: 100% !important;  /* Forces the canvas to fill the container */
+  height: 100% !important;
+  object-fit: contain; 
+}
+
+.game-panel {
+  background-color: rgba(0, 0, 0, 0.8);
+  padding: 15px;
+  border: 3px solid var(--tetris-border);
+}
+
+/* Message styling */
+.message {
+  color: var(--tetris-o);
+  margin-top: 10px;
+  font-size: 0.8em;
+  height: 20px;
+}
+
+.success-message {
+  color: var(--tetris-s);
+}
+
+.error-message {
+  color: var(--tetris-z);
 }

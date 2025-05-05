@@ -1,88 +1,134 @@
 import { GameObjects, Scene } from 'phaser';
-
 import { EventBus } from '../EventBus';
 import axios from 'axios';
 
-export class Queue extends Scene
-{
+export class Queue extends Scene {
     queueId: string | null = null;
-    // Update queue status periodically
-    // queueUpdateInterval: number | null = null;
-
-    // Don't need lastReady, this is handled in Redis database
-    // lastReady: boolean | null = null;
-    // When user first loads Queue scene, game is not started yet
     gameStarted: boolean = false;
 
-    background: GameObjects.Image;
-    logo: GameObjects.Image;
+    background: GameObjects.Rectangle;
     title: GameObjects.Text;
     queueText: GameObjects.Text;
     readyText: GameObjects.Text;
     playersReadyText: GameObjects.Text;
     gameStartText: GameObjects.Text;
-    // logoTween: Phaser.Tweens.Tween | null;
 
-    constructor ()
-    {
+    constructor() {
         super('Queue');
     }
 
-    create ()
-    {
-        //this.background = this.add.image(512, 384, 'background');
+    preload() {
+        // Load the WebFont script dynamically
+        this.load.script('webfont', 'https://ajax.googleapis.com/ajax/libs/webfont/1.6.26/webfont.js');
+    }
 
-        //this.logo = this.add.image(512, 300, 'logo').setDepth(100);
+    create() {
+        
+        // Wait for WebFont to load the font before creating text
+        (window as any).WebFont.load({
+            google: {
+                families: ['Press Start 2P']
+            },
+            active: () => {
+                this.createGameElements();
+            }
+        });
+    }
 
-        // Queue Title
-        this.title = this.add.text(512, 100, 'Queue', {
-            fontFamily: 'Arial Black', fontSize: 60, color: '#ffffff',
-            stroke: '#000000', strokeThickness: 8,
-            align: 'center'
-        }).setOrigin(0.5).setDepth(100);
-
+    createGameElements() {
         // Queue Text
-        this.queueText = this.add.text(512, 300, 'Press Queue to find a game', {
-            fontFamily: 'Arial Black', fontSize: 24, color: '#ffffff',
-            stroke: '#000000', strokeThickness: 8,
+        this.queueText = this.add.text(512, 200, 'PRESS QUEUE TO FIND A GAME', {
+            fontFamily: '"Press Start 2P"', 
+            fontSize: '36px',
+            color: '#ffffff',
+            stroke: '#000000', 
+            strokeThickness: 8,
             align: 'center'
         }).setOrigin(0.5).setDepth(100);
 
         // Ready Text
-        this.readyText = this.add.text(512, 450, '', {
-            fontFamily: 'Arial Black', fontSize: 24, color: '#ffffff',
-            stroke: '#000000', strokeThickness: 8,
+        this.readyText = this.add.text(512, 300, '', {
+            fontFamily: '"Press Start 2P"', 
+            fontSize: '28px',
+            color: '#ffffff',
+            stroke: '#000000', 
+            strokeThickness: 6,
             align: 'center'
         }).setOrigin(0.5).setDepth(100);
 
         // Number of Players Ready Text
-        this.playersReadyText = this.add.text(512, 500, '', {
-            fontFamily: 'Arial Black', fontSize: 24, color: '#ffffff',
-            stroke: '#000000', strokeThickness: 8,
+        this.playersReadyText = this.add.text(512, 400, '', {
+            fontFamily: '"Press Start 2P"', 
+            fontSize: '28px',
+            color: '#ffffff',
+            stroke: '#000000', 
+            strokeThickness: 6,
             align: 'center'
         }).setOrigin(0.5).setDepth(100);
 
         // Game Start Text
-        this.gameStartText = this.add.text(512, 550, '', {
-            fontFamily: 'Arial Black', fontSize: 24, color: '#ffffff',
-            stroke: '#000000', strokeThickness: 8,
+        this.gameStartText = this.add.text(512, 500, '', {
+            fontFamily: '"Press Start 2P"', 
+            fontSize: '28px',
+            color: '#ffffff',
+            stroke: '#000000', 
+            strokeThickness: 6,
             align: 'center'
         }).setOrigin(0.5).setDepth(100);
+
+        // Add Tetris-style decorative blocks
+        this.addDecorativeBlocks();
 
         EventBus.emit('current-scene-ready', this);
     }
     
+    // Add some Tetris blocks as decoration
+    addDecorativeBlocks() {
+        // Colors for Tetris pieces
+        const colors = [
+            0xa000f0, // T piece - purple
+            0x0000f0, // J piece - blue
+            0x00f000, // S piece - green
+            0x00f0f0, // I piece - cyan
+            0xf00000, // Z piece - red
+            0xf0f000  // O piece - yellow
+        ];
+        
+        // Get canvas dimensions for block positioning
+        const width = this.cameras.main.width;
+        const height = this.cameras.main.height;
+        
+        // Add some falling blocks that can appear anywhere on the canvas
+        for (let i = 0; i < 10; i++) {
+            const x = Phaser.Math.Between(20, width - 20);
+            const y = Phaser.Math.Between(20, height - 20);
+            const size = Phaser.Math.Between(15, 30);
+            const color = colors[Phaser.Math.Between(0, colors.length - 1)];
+            
+            const block = this.add.rectangle(x, y, size, size, color)
+                .setAlpha(0.5)
+                .setDepth(50);
+                
+            // Animate the block to fall to the bottom of the screen
+            this.tweens.add({
+                targets: block,
+                y: height + size,
+                duration: Phaser.Math.Between(3000, 8000),
+                ease: 'Linear',
+                repeat: -1,
+                yoyo: false,
+                delay: Phaser.Math.Between(0, 2000)
+            });
+        }
+    }
+    
     // Once game starts, change scene to Game
-    changeScene ()
-    {
+    changeScene() {
         this.scene.start('Game');
     }
 
-
-
     // Enter queue when Enter Queue button is pressed
-    async enterQueue()
-    {
+    async enterQueue() {
         try {
             const response = await axios.post('http://localhost:3000/enterqueue', {}, {
                 withCredentials: true
@@ -94,24 +140,22 @@ export class Queue extends Scene
 
                 // Retrieve queueSize from Redis
                 const queueSize = response.data.queueSize;
-                this.queueText.setText(`Players currently in queue: ${queueSize}`);
+                this.queueText.setText(`Players in queue: ${queueSize}`);
 
                 // User just entered queue, so they are not ready
-                this.readyText.setText('You are not ready.');
+                this.readyText.setText('You are not ready');
 
                 // Retrieve readySize from Redis
                 const readySize = response.data.readySize;
-                this.playersReadyText.setText(`Players ready: ${readySize} / ${queueSize}`);
+                this.playersReadyText.setText(`Players ready: ${readySize}/${queueSize}`);
 
                 // Information for game start
-                this.gameStartText.setText('Game will start when all players are ready.');
+                this.gameStartText.setText('Game starts when all are ready');
 
                 // Start updating queue status periodically
                 await this.updateQueueStatusWhile();
             }
-
-        }
-        catch (error) {
+        } catch (error) {
             if (this.scene && this.scene.isActive()) {
                 this.queueText.setText("Failed to enter queue");
             }
@@ -132,19 +176,16 @@ export class Queue extends Scene
         // Game is started
         if (this.gameStarted) {
             // Set game information text
-            this.gameStartText.setText('All players are ready. Starting game...');
+            this.gameStartText.setText('All players ready! Starting game...');
 
             // Wait 1 second before starting game
             await new Promise(resolve => setTimeout(resolve, 1000));
             await this.startGame();
-
         }
-        
     }
 
     // Runs once per loop of updateQueueStatusWhile()
     async updateQueueStatus() {
-
         // Only update queue status if user is currently in queue
         if (!this.queueId) {
             return;
@@ -162,40 +203,30 @@ export class Queue extends Scene
                 if (response.data.success) {
                     // Update queueText with updated queue size
                     const queueSize = response.data.queueSize;
-                    this.queueText.setText(`Players currently in queue: ${queueSize}`);
+                    this.queueText.setText(`Players in queue: ${queueSize}`);
     
                     // Update playersReadyText with updated ready size
                     const readySize = response.data.readySize;
-                    this.playersReadyText.setText(`Players ready: ${readySize} / ${queueSize}`);
+                    this.playersReadyText.setText(`Players ready: ${readySize}/${queueSize}`);
 
                     // All players in queue are ready, so start game
                     if (readySize == queueSize) {
                         this.gameStarted = true;
                     }
-
-
                 }
             }
             catch (error) {
-                this.queueText.setText('Failed to get updated queue size');
-                this.playersReadyText.setText('Failed to get number of ready players');
+                this.queueText.setText('Failed to get queue info');
+                this.playersReadyText.setText('Error checking ready players');
                 console.error(error);
             }
-            
         }
     }
 
-    // Maybe?
-    leaveQueue()
-    {
-
-    }
-
     // User clicks Ready Up button
-    async readyUp()
-    {
+    async readyUp() {
         try {
-            // Call /readyup endpoint in backend, sneding queueId
+            // Call /readyup endpoint in backend, sending queueId
             const response = await axios.post('http://localhost:3000/readyup', {
                 // Send lobbyId
                 queueId: this.queueId,
@@ -204,36 +235,23 @@ export class Queue extends Scene
             });
 
             if (response.data.success) {
-
                 // Update queueText with updated queue size
                 const queueSize = response.data.queueSize;
-                this.queueText.setText(`Players currently in queue: ${queueSize}`);
+                this.queueText.setText(`Players in queue: ${queueSize}`);
 
                 // Update readyText indicating this user is ready
-                this.readyText.setText('You are ready.');
+                this.readyText.setText('You are ready!');
 
                 // Update playersReadyText with updated ready size
                 const readySize = response.data.readySize;
-                this.playersReadyText.setText(`Players ready: ${readySize} / ${queueSize}`);
-
-
-                // Boolean: check if this player is the last player to ready
-                // this.lastReady = response.data.lastReady;
-                // if (this.lastReady) {
-                //     // Set this.gameStarted to true if lastReady
-                //     this.gameStarted = true;
-                // }
-
-
+                this.playersReadyText.setText(`Players ready: ${readySize}/${queueSize}`);
             }
-
         }
         catch (error) {
             this.readyText.setText("Failed to ready up");
             console.error(error);
         }
     }
-
 
     // Game starts
     async startGame() {
@@ -244,7 +262,5 @@ export class Queue extends Scene
             this.gameStartText.setText("Error starting game");
             console.error(error);
         }
-
     }
-
 }

@@ -1,6 +1,7 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { IRefPhaserGame, PhaserGame } from '../PhaserGame';
 import { Queue } from '../game/scenes/Queue';
+import Link from 'next/link';
 
 function Game()
 {
@@ -11,6 +12,9 @@ function Game()
     const [isReady, setCantReady] = useState(true);
     // Can only queue is user is not already queued
     const [isQueued, setIsQueued] = useState(false);
+
+    // Game status message
+    const [statusMessage, setStatusMessage] = useState('PRESS QUEUE TO START');
 
     // ENTER QUEUE
     const enterQueue = () => {
@@ -23,6 +27,7 @@ function Game()
                 scene.enterQueue();
                 setCantReady(false);
                 setIsQueued(true);
+                setStatusMessage('IN QUEUE - READY UP!');
             }
         }
     }
@@ -37,6 +42,7 @@ function Game()
             {
                 scene.readyUp();
                 setCantReady(true);
+                setStatusMessage('READY! WAITING FOR GAME START');
             }
         }
     }
@@ -49,6 +55,7 @@ function Game()
                 if (scene)
                 {
                     scene.changeScene();
+                    setStatusMessage('GAME STARTING...');
                 }
             }
     }
@@ -61,22 +68,100 @@ function Game()
         
     }
 
+    useEffect(() => {
+        const colors = ['i', 'j', 'l', 'o', 's', 't', 'z'];
+        let colorIndex = 0;
+        
+        const interval = setInterval(() => {
+            const buttons = document.querySelectorAll('.button');
+            buttons.forEach(button => {
+                if (!button.hasAttribute('disabled')) {
+                    (button as HTMLElement).style.borderColor = `var(--tetris-${colors[colorIndex]})`;
+                }
+            });
+            
+            colorIndex = (colorIndex + 1) % colors.length;
+        }, 2000);
+        
+        return () => clearInterval(interval);
+    }, []);
+
     return (
-        <div id="app">
-            <PhaserGame ref={phaserRef} currentActiveScene={currentScene} />
-            <div>
-                <div>
-                    <button disabled={isQueued} className="button" onClick={enterQueue}>Queue</button>
+        <div className="game-container">
+            {/* Logo at the top */}
+            <div className="game-header">
+                <div className="type99-logo">
+                    <div className="type-text">
+                        <span style={{ color: 'var(--tetris-t)' }}>T</span>
+                        <span style={{ color: 'var(--tetris-j)' }}>Y</span>
+                        <span style={{ color: 'var(--tetris-s)' }}>P</span>
+                        <span style={{ color: 'var(--tetris-i)' }}>E</span>
+                    </div>
+                    <div className="num-text">
+                        <span style={{ color: 'var(--tetris-z)' }}>9</span>
+                        <span style={{ color: 'var(--tetris-o)' }}>9</span>
+                    </div>
                 </div>
-                <div>
-                    <button disabled={isReady} className="button" onClick={readyUp}>Ready Up</button>
+            </div>
+            
+            {/* Game content (game screen + control panel) */}
+            <div className="game-content">
+                {/* Game screen */}
+                <div className="game-screen">
+                    <PhaserGame ref={phaserRef} currentActiveScene={currentScene} />
                 </div>
-                <div>
-                    <button className="button" onClick={startGame}>Start Game</button>
+                
+                {/* Control panel */}
+                <div className="control-panel">
+                    <div className="status-message" style={{ 
+                        color: 'var(--tetris-o)', 
+                        marginBottom: '15px',
+                        fontSize: '0.8em',
+                        textAlign: 'center'
+                    }}>
+                        {statusMessage}
+                    </div>
+                    
+                    <div>
+                        <button 
+                            disabled={isQueued} 
+                            className="button queue-button" 
+                            onClick={enterQueue}
+                        >
+                            QUEUE
+                        </button>
+                    </div>
+                    
+                    <div>
+                        <button 
+                            disabled={isReady} 
+                            className="button ready-button" 
+                            onClick={readyUp}
+                        >
+                            READY UP
+                        </button>
+                    </div>
+                    
+                    <div>
+                        <button 
+                            className="button start-button" 
+                            onClick={startGame}
+                        >
+                            START GAME
+                        </button>
+                    </div>
+                    
+                    <div style={{ marginTop: '20px' }}>
+                        <Link href="/profile">
+                            <button className="button back-button">
+                                BACK TO PROFILE
+                            </button>
+                        </Link>
+                    </div>
                 </div>
             </div>
         </div>
-    )
+    );
 }
 
 export default Game
