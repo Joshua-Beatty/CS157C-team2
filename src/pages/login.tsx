@@ -1,15 +1,16 @@
 import { useRouter } from 'next/router';
 import { useState } from 'react';
+import Link from 'next/link';
 // Axios to make HTTP requests simple
 import axios from 'axios';
 
-function Login()
-{
+function Login() {
     const router = useRouter();
 
     const [username, setUsername] = useState('');
     const [password, setPassword] = useState('');
     const [message, setMessage] = useState('');
+    const [isSuccess, setIsSuccess] = useState(false);
 
     const handleLogin = async () => {
         try {
@@ -23,6 +24,7 @@ function Login()
             setMessage(response.data.message);
             // If successful, send user to profile page
             if (response.data.success) {
+                setIsSuccess(true);
                 setTimeout(() => {
                     router.push('/profile');
                 }, 1000);
@@ -31,30 +33,69 @@ function Login()
         } catch (error) {
             // if login failed
             setMessage('Login failed');
+            setIsSuccess(false);
             console.error(error);
         }
     };
 
     return (
-        <div style={{ textAlign: 'center', marginTop: '100px' }}>
-            <h2>Login</h2>
-            <input
-                type="text"
-                placeholder="Username"
-                /* username binds to input value */
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-            /><br /><br />
-            <input
-                type="password"
-                placeholder="Password"
-                /* password binds to input value */
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-            /><br /><br />
-            <button onClick={handleLogin}>Login</button>
-            {/* Message displays whether login was successful or not */}
-            <p>{message}</p>
+        <div className="auth-container">
+            <div className="type99-logo" style={{ margin: '0 auto 30px' }}>
+                <div className="type-text" style={{ fontSize: '2.5rem' }}>
+                    <span style={{ color: 'var(--tetris-t)' }}>T</span>
+                    <span style={{ color: 'var(--tetris-j)' }}>Y</span>
+                    <span style={{ color: 'var(--tetris-s)' }}>P</span>
+                    <span style={{ color: 'var(--tetris-i)' }}>E</span>
+                </div>
+                <div className="num-text" style={{ fontSize: '2.5rem' }}>
+                    <span style={{ color: 'var(--tetris-z)' }}>9</span>
+                    <span style={{ color: 'var(--tetris-o)' }}>9</span>
+                </div>
+            </div>
+            <h2>PLAYER LOGIN</h2>
+            
+            <div className="input-group">
+                <input
+                    type="text"
+                    placeholder="Username"
+                    value={username}
+                    onChange={(e) => setUsername(e.target.value)}
+                />
+            </div>
+            
+            <div className="input-group">
+                <input
+                    type="password"
+                    placeholder="Password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                />
+            </div>
+            
+            <button 
+                className="button" 
+                onClick={handleLogin}
+                style={{ borderColor: 'var(--tetris-i)' }}
+            >
+                LOGIN
+            </button>
+            
+            <div className={`message ${isSuccess ? 'success-message' : 'error-message'}`}>
+                {message}
+            </div>
+            
+            <div style={{ marginTop: '20px' }}>
+                <Link href="/">
+                    <span style={{ 
+                        color: 'var(--tetris-o)', 
+                        cursor: 'pointer',
+                        fontSize: '0.7em',
+                        textDecoration: 'underline'
+                    }}>
+                        BACK TO MAIN MENU
+                    </span>
+                </Link>
+            </div>
         </div>
     );
 }
