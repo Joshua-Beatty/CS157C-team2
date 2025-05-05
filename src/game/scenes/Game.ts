@@ -4,6 +4,10 @@ import axios from 'axios';
 
 export class Game extends Scene
 {
+    camera: Phaser.Cameras.Scene2D.Camera;
+    background: Phaser.GameObjects.Image;
+    gameText: Phaser.GameObjects.Text;
+
     // Keep track of this game client's player
     userId: string | null = null;
     userHp: number | null = null;
@@ -17,16 +21,16 @@ export class Game extends Scene
     // Keep track of game end (ends when only 1 player alive)
     gameOver: boolean | null = null
 
-    camera: Phaser.Cameras.Scene2D.Camera;
-    background: Phaser.GameObjects.Image;
-    gameText: Phaser.GameObjects.Text;
-
+    // Contains text to be displayed on screen
     wordsText: Phaser.GameObjects.Text;
     inputText: Phaser.GameObjects.Text;
+
+    // Word Bank
     wordBank = ['apple', 'banana', 'cherry', 'date', 'elderberry', 'fig', 'grape', 'honeydew', 'kiwi', 'lemon', 'mango', 'nectarine', 'orange', 'papaya', 'quince', 'raspberry', 'strawberry', 'tangerine', 'watermelon', 'apricot', 'blueberry', 'cantaloupe', 'dragonfruit', 'eggplant', 'fennel', 'guava', 'hibiscus', 'iceberg', 'jalapeno', 'kumquat', 'lime', 'mulberry', 'nectarine', 'olive', 'persimmon', 'pineapple', 'plum', 'pomegranate', 'rhubarb', 'starfruit', 'tomato', 'unique', 'yam', 'zucchini', 'acorn', 'bagel', 'cat', 'dog', 'elephant', 'frog', 'giraffe', 'horse', 'iguana', 'jellyfish', 'kangaroo', 'lion', 'monkey', 'narwhal', 'octopus', 'parrot', 'quail', 'rabbit', 'snake', 'tiger', 'umbrella', 'vulture', 'walrus', 'xylophone', 'yak', 'zebra', 'antelope', 'bear', 'cow', 'dolphin', 'eagle', 'fox', 'gorilla', 'hippopotamus', 'iguana', 'jaguar', 'koala', 'lemur', 'moose', 'newt', 'opossum', 'penguin', 'quokka', 'raccoon', 'sloth', 'toucan', 'unicorn', 'viper', 'whale', 'xerus', 'yellowjacket', 'zebra', 'albatross', 'baboon', 'cactus', 'dingo', 'elk', 'fern', 'gecko', 'hawk', 'owl', 'penguin', 'quail', 'rooster', 'sparrow', 'toucan', 'vulture', 'warbler', 'xenops', 'yodeler', 'zebra', 'artichoke', 'blueberry', 'cabbage', 'daffodil', 'eucalyptus', 'fern', 'ginseng', 'hibiscus', 'ivy', 'juniper', 'kelp', 'lavender', 'marigold', 'nasturtium', 'oregano', 'petunia', 'quinoa', 'rosemary', 'sage', 'thyme', 'violet', 'wisteria', 'xenia', 'yucca', 'zinnia', 'acorn', 'ball', 'clock', 'door', 'elephant', 'flag', 'grape', 'hat', 'ink', 'jug', 'kite', 'lemon', 'mask', 'nut', 'octagon', 'park', 'queen', 'radio', 'ship', 'train', 'umbrella', 'vest', 'wagon', 'xylophone', 'yellow', 'zebra', 'axis', 'break', 'crane', 'drum', 'end', 'flare', 'gap', 'hunt', 'icon', 'joke', 'key', 'love', 'mark', 'neck', 'oval', 'park', 'quiz', 'rest', 'snap', 'tale', 'unit', 'void', 'wall', 'yoke', 'zest', 'arm', 'bend', 'cash', 'die', 'ear', 'fit', 'gun', 'ham', 'ink', 'joy', 'kit', 'lad', 'man', 'net', 'oil', 'pen', 'rat', 'sun', 'toy', 'urn', 'vat', 'win', 'yak', 'zip', 'aim', 'ball', 'coat', 'dust', 'egg', 'fan', 'grid', 'horn', 'ink', 'jam', 'log', 'mix', 'nap', 'odd', 'pit', 'rug', 'saw', 'tin', 'undo', 'vet', 'wig', 'you', 'zip', 'amber', 'bench', 'coat', 'deck', 'epic', 'fame', 'gear', 'hand', 'ice', 'jam', 'king', 'log', 'map', 'net', 'oak', 'pet', 'quiz', 'rug', 'sap', 'top', 'urn', 'van', 'web', 'yam', 'zoo', 'angle', 'bar', 'cast', 'deal', 'eel', 'flat', 'gash', 'heat', 'icon', 'jolt', 'king', 'lace', 'mile', 'net', 'oak', 'pit', 'queen', 'rag', 'sat', 'tin', 'urn', 'vet', 'win', 'yet', 'zone', 'alpha', 'bravo', 'charlie', 'delta', 'echo', 'foxtrot', 'golf', 'hotel', 'india', 'juliet', 'kilo', 'lima', 'mike', 'november', 'oscar', 'papa', 'quebec', 'romeo', 'sierra', 'tango', 'uniform', 'victor', 'whiskey', 'xray', 'yankee', 'zulu'];
-    // words = ['apple', 'breeze', 'cloud', 'orange', 'planet', 'river', 'train', 'tunnel', 'castle', 'ladder', 'mountain', 'puzzle', 'hammer', 'robot', 'crystal', 'eagle', 'flame', 'forest', 'ghost', 'honey', 'chair', 'tiger', 'banana', 'paper', 'garden', 'shadow', 'snow', 'stone', 'window', 'wizard', 'rocket', 'jelly', 'sparkle', 'mirror', 'magic', 'night', 'ocean', 'echo', 'comet', 'laser', 'dragon', 'knight', 'quest', 'legend', 'thunder', 'neon', 'silent', 'pixel', 'energy', 'glitch'];
+
     wordList: string[] = [];
     zoneList: string[] = [];
+    
     // To store status of other players during game
     playerHps: Record<string, number> | null = null;
     playerScores: Record<string, number> | null = null;
@@ -49,7 +53,6 @@ export class Game extends Scene
 
     create ()
     {
-
         this.camera = this.cameras.main;
         this.camera.setBackgroundColor(0x00ff00);
 
@@ -59,15 +62,7 @@ export class Game extends Scene
 
         EventBus.emit('current-scene-ready', this);
 
-        // this.gameText = this.add.text(512, 50, 'Game', {
-        //     fontFamily: 'Arial Black', fontSize: 38, color: '#ffffff',
-        //     stroke: '#000000', strokeThickness: 8,
-        //     align: 'center'
-        // }).setOrigin(0.5).setDepth(100);
-
-        // Start of game logic
-
-        // Display the 50 words
+        // Create Text to display words
         this.wordsText = this.add.text(512, 200, this.wordList.join(' '), {
             fontFamily: 'Consolas', fontSize: '20px', color: '#ffffff', // Consolas is monospaced
             stroke: '#000000', strokeThickness: 4,
@@ -114,20 +109,10 @@ export class Game extends Scene
     
                     // Generate first 10 words randomly using this.wordBank
                     this.wordList = this.wordBank.sort(() => 0.5 - Math.random()).slice(0, 10);
+
+                    // Update wordsText
                     this.wordsText.setText(this.wordList.join(' '));
-                    // this.wordsText = this.add.text(512, 200, this.wordList.join(' '), {
-                    //     fontFamily: 'Consolas', fontSize: '20px', color: '#ffffff', // Consolas is monospaced
-                    //     stroke: '#000000', strokeThickness: 4,
-                    //     align: 'center',
-                    //     wordWrap: {width: 800, useAdvancedWrap: true }
-                    // }).setOrigin(0.5).setDepth(100);
-            
-                    // this.inputText = this.add.text(512, 400, '', {
-                    //     fontFamily: 'Consolas', fontSize: '20px', color: '#ffffff',
-                    //     stroke: '#000000', strokeThickness: 4,
-                    //     align: 'center',
-                    //     wordWrap: {width: 800, useAdvancedWrap: true }
-                    // }).setOrigin(0.5).setDepth(100);
+                    
     
                     // Call startgame endpoint with created wordList
                     const gameResponse = await axios.post("http://localhost:5000/startgame", {
@@ -183,20 +168,8 @@ export class Game extends Scene
             // Populate zoneList
             this.zoneList = response.data.zoneList;
 
+            // Update wordsText
             this.wordsText.setText(this.wordList.join(' '));
-            // this.wordsText = this.add.text(512, 200, this.wordList.join(' '), {
-            //     fontFamily: 'Consolas', fontSize: '20px', color: '#ffffff', // Consolas is monospaced
-            //     stroke: '#000000', strokeThickness: 4,
-            //     align: 'center',
-            //     wordWrap: {width: 800, useAdvancedWrap: true }
-            // }).setOrigin(0.5).setDepth(100);
-    
-            // this.inputText = this.add.text(512, 400, '', {
-            //     fontFamily: 'Consolas', fontSize: '20px', color: '#ffffff',
-            //     stroke: '#000000', strokeThickness: 4,
-            //     align: 'center',
-            //     wordWrap: {width: 800, useAdvancedWrap: true }
-            // }).setOrigin(0.5).setDepth(100);
 
             await this.updateGameStatusWhile();
 
