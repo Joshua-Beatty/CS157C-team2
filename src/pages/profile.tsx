@@ -2,12 +2,12 @@ import { useRouter } from 'next/router';
 import { useEffect, useState} from 'react';
 import axios from 'axios';
 
-function Profile()
-{
+function Profile() {
     const router = useRouter();
 
     const [message, setMessage] = useState('');
     const [isLoggedIn, setIsLoggedIn] = useState(false);
+    const [isSuccess, setIsSuccess] = useState(true);
 
     // Upon loading profile, check if user is logged in
     useEffect(() => {
@@ -21,6 +21,7 @@ function Profile()
                 else {
                     // Not logged in, so redirect to home
                     setIsLoggedIn(false);
+                    setIsSuccess(false);
                     setMessage(response.data.message + ' Redirecting to home page...');
                     setTimeout(() => {
                         router.push('/');
@@ -29,6 +30,7 @@ function Profile()
             }
             catch (error) {
                 setIsLoggedIn(false);
+                setIsSuccess(false);
                 setMessage('Error checking session');
             }
         };
@@ -52,26 +54,85 @@ function Profile()
         }
     };
 
+    // Tetris piece icons
+    const TetrisPiece = ({ type }) => {
+        const style = {
+            display: 'inline-block',
+            width: '20px',
+            height: '20px',
+            backgroundColor: `var(--tetris-${type})`,
+            marginRight: '5px',
+            verticalAlign: 'middle'
+        };
+        
+        return <span style={style}></span>;
+    };
+
 
     return (
-        <div style={{ textAlign: 'center', marginTop: '100px'}}>
-            <button onClick={handleLogout} style={{ position:'absolute', top: '30px', right: '50px'}}>Log Out</button>
+        <div className="profile-container">
+            <button 
+                onClick={handleLogout} 
+                className="logout-button"
+            >
+                EXIT GAME
+            </button>
 
-            <h1> Profile Page </h1>
-            <br /><br />
-            <p>{message}</p>
+            <div className="type99-logo" style={{ margin: '0 auto 30px' }}>
+                <div className="type-text" style={{ fontSize: '2.5rem' }}>
+                    <span style={{ color: 'var(--tetris-t)' }}>T</span>
+                    <span style={{ color: 'var(--tetris-j)' }}>Y</span>
+                    <span style={{ color: 'var(--tetris-s)' }}>P</span>
+                    <span style={{ color: 'var(--tetris-i)' }}>E</span>
+                </div>
+                <div className="num-text" style={{ fontSize: '2.5rem' }}>
+                    <span style={{ color: 'var(--tetris-z)' }}>9</span>
+                    <span style={{ color: 'var(--tetris-o)' }}>9</span>
+                </div>
+            </div>
 
-            {isLoggedIn && (<>
-                    <br /><br />
-                    <p>Play a game!</p>
-                    <button onClick={() => {router.push('/game')}}>Play game</button>
-                    <br /><br /><br />
-                    <p>View your gameplay statistics below.</p>
-                </>
-            )}
+            <h1>PLAYER PROFILE</h1>
             
+            <div className={`message ${isSuccess ? 'success-message' : 'error-message'}`}>
+                {message}
+            </div>
 
+            {isLoggedIn && (
+                <div className="profile-content">
+                    <div className="stats-container" style={{ 
+                        marginTop: '30px',
+                        padding: '15px',
+                        border: '2px solid var(--tetris-i)',
+                        backgroundColor: 'rgba(0, 0, 0, 0.5)'
+                    }}>
+                        <h2>GAME STATS</h2>
+                        <div style={{ textAlign: 'left', marginTop: '20px' }}>
+                            <p><TetrisPiece type="i" /> Wins: 0</p>
+                            <p><TetrisPiece type="j" /> Games Played: 0</p>
+                            <p><TetrisPiece type="l" /> Average Placement: 0</p>
+                            <p><TetrisPiece type="o" /> Kills: 0</p>
+                            <p><TetrisPiece type="s" /> Highest Kill Game: 0</p>
+                            <p><TetrisPiece type="t" /> Average WPM: 0</p>
+                            <p><TetrisPiece type="z" /> Highest WPM: 0</p>
+                        </div>
+                    </div>
 
+                    <div style={{ marginTop: '30px' }}>
+                        <p>READY TO PLAY?</p>
+                        <button 
+                            onClick={() => { router.push('/game') }}
+                            className="button"
+                            style={{ 
+                                borderColor: 'var(--tetris-l)',
+                                width: '200px',
+                                fontSize: '1em'
+                            }}
+                        >
+                            PLAY GAME
+                        </button>
+                    </div>
+                </div>
+            )}
         </div>
     )
 }
