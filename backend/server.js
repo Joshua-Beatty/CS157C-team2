@@ -32,7 +32,8 @@ const client = redis.createClient({
         // local host for now, maybe VM IP later
         host: '34.173.23.63',
         port: 6379
-    }
+    },
+    password: '5Xr9!fH2s@Dp7t$kQb8yP0zLwE#Vg3zR'
 });
 
 // Connect to Redis
