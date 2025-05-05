@@ -8,8 +8,11 @@ export class Queue extends Scene
     queueId: string | null = null;
     // Update queue status periodically
     // queueUpdateInterval: number | null = null;
-    lastReady: boolean | null = null;
-    gameStarted: boolean | null = null;
+
+    // Don't need lastReady, this is handled in Redis database
+    // lastReady: boolean | null = null;
+    // When user first loads Queue scene, game is not started yet
+    gameStarted: boolean = false;
 
     background: GameObjects.Image;
     logo: GameObjects.Image;
@@ -18,7 +21,7 @@ export class Queue extends Scene
     readyText: GameObjects.Text;
     playersReadyText: GameObjects.Text;
     gameStartText: GameObjects.Text;
-    logoTween: Phaser.Tweens.Tween | null;
+    // logoTween: Phaser.Tweens.Tween | null;
 
     constructor ()
     {
@@ -31,31 +34,35 @@ export class Queue extends Scene
 
         //this.logo = this.add.image(512, 300, 'logo').setDepth(100);
 
+        // Queue Title
         this.title = this.add.text(512, 100, 'Queue', {
             fontFamily: 'Arial Black', fontSize: 60, color: '#ffffff',
             stroke: '#000000', strokeThickness: 8,
             align: 'center'
         }).setOrigin(0.5).setDepth(100);
 
+        // Queue Text
         this.queueText = this.add.text(512, 300, 'Press Queue to find a game', {
             fontFamily: 'Arial Black', fontSize: 24, color: '#ffffff',
             stroke: '#000000', strokeThickness: 8,
             align: 'center'
         }).setOrigin(0.5).setDepth(100);
 
-        
+        // Ready Text
         this.readyText = this.add.text(512, 450, '', {
             fontFamily: 'Arial Black', fontSize: 24, color: '#ffffff',
             stroke: '#000000', strokeThickness: 8,
             align: 'center'
         }).setOrigin(0.5).setDepth(100);
 
+        // Number of Players Ready Text
         this.playersReadyText = this.add.text(512, 500, '', {
             fontFamily: 'Arial Black', fontSize: 24, color: '#ffffff',
             stroke: '#000000', strokeThickness: 8,
             align: 'center'
         }).setOrigin(0.5).setDepth(100);
 
+        // Game Start Text
         this.gameStartText = this.add.text(512, 550, '', {
             fontFamily: 'Arial Black', fontSize: 24, color: '#ffffff',
             stroke: '#000000', strokeThickness: 8,
@@ -65,14 +72,9 @@ export class Queue extends Scene
         EventBus.emit('current-scene-ready', this);
     }
     
+    // Once game starts, change scene to Game
     changeScene ()
     {
-        // if (this.logoTween)
-        // {
-        //     this.logoTween.stop();
-        //     this.logoTween = null;
-        // }
-
         this.scene.start('Game');
     }
 
@@ -87,23 +89,24 @@ export class Queue extends Scene
             });
 
             if (response.data.success) {
-                // GET QUEUE ID FROM REDIS
+                // Set this.queueId, to indicate that user is in queue
                 this.queueId = response.data.queueId;
 
+                // Retrieve queueSize from Redis
                 const queueSize = response.data.queueSize;
                 this.queueText.setText(`Players currently in queue: ${queueSize}`);
 
+                // User just entered queue, so they are not ready
                 this.readyText.setText('You are not ready.');
 
+                // Retrieve readySize from Redis
                 const readySize = response.data.readySize;
                 this.playersReadyText.setText(`Players ready: ${readySize} / ${queueSize}`);
 
+                // Information for game start
                 this.gameStartText.setText('Game will start when all players are ready.');
 
                 // Start updating queue status periodically
-                // if (!this.queueUpdateInterval) {
-                //     this.queueUpdateInterval = window.setInterval(() => this.updateQueueStatus(), 1000);
-                // }
                 await this.updateQueueStatusWhile();
             }
 
@@ -116,15 +119,19 @@ export class Queue extends Scene
         }
     }
 
+    // Loop for updating queue status while in queue
     async updateQueueStatusWhile() {
         while (!this.gameStarted) {
+            // Call updateQueueStatus function
             await this.updateQueueStatus();
 
             // Update queue status every 1 second
             await new Promise(resolve => setTimeout(resolve, 1000));
         }
 
+        // Game is started
         if (this.gameStarted) {
+            // Set game information text
             this.gameStartText.setText('All players are ready. Starting game...');
 
             // Wait 1 second before starting game
@@ -135,22 +142,17 @@ export class Queue extends Scene
         
     }
 
+    // Runs once per loop of updateQueueStatusWhile()
     async updateQueueStatus() {
-        // Stop updating queue when game is starting
-        // if (this.gameStarted) {
-        //     clearInterval(this.queueUpdateInterval);
-        //     this.queueUpdateInterval = null;
-        //     return;
-        // }
-
-
 
         // Only update queue status if user is currently in queue
         if (!this.queueId) {
             return;
         }
+        // User is currently in queue, so proceed with updating queue status
         else {
             try {
+                // Send queueId to backend
                 const response = await axios.post('http://localhost:3000/queuestatus', {
                     queueId: this.queueId,
                 }, {
@@ -158,13 +160,15 @@ export class Queue extends Scene
                 });
     
                 if (response.data.success) {
-                    // Update queueText and readyText with updated queue and ready players
+                    // Update queueText with updated queue size
                     const queueSize = response.data.queueSize;
                     this.queueText.setText(`Players currently in queue: ${queueSize}`);
     
+                    // Update playersReadyText with updated ready size
                     const readySize = response.data.readySize;
                     this.playersReadyText.setText(`Players ready: ${readySize} / ${queueSize}`);
 
+                    // All players in queue are ready, so start game
                     if (readySize == queueSize) {
                         this.gameStarted = true;
                     }
@@ -191,6 +195,7 @@ export class Queue extends Scene
     async readyUp()
     {
         try {
+            // Call /readyup endpoint in backend, sneding queueId
             const response = await axios.post('http://localhost:3000/readyup', {
                 // Send lobbyId
                 queueId: this.queueId,
@@ -200,26 +205,24 @@ export class Queue extends Scene
 
             if (response.data.success) {
 
-                // Update queueText and readyText with updated queue and ready players
+                // Update queueText with updated queue size
                 const queueSize = response.data.queueSize;
                 this.queueText.setText(`Players currently in queue: ${queueSize}`);
 
+                // Update readyText indicating this user is ready
                 this.readyText.setText('You are ready.');
 
+                // Update playersReadyText with updated ready size
                 const readySize = response.data.readySize;
                 this.playersReadyText.setText(`Players ready: ${readySize} / ${queueSize}`);
 
-                // Check if this player is the last player to ready
-                this.lastReady = response.data.lastReady;
-                
-                
-                // Wait 1 second before starting game
-                await new Promise(resolve => setTimeout(resolve, 1000));
-                if (this.lastReady) {
-                    this.gameStartText.setText('All players are ready. Starting game...');
-                    this.gameStarted = true;
-                    this.startGame();
-                }
+
+                // Boolean: check if this player is the last player to ready
+                // this.lastReady = response.data.lastReady;
+                // if (this.lastReady) {
+                //     // Set this.gameStarted to true if lastReady
+                //     this.gameStarted = true;
+                // }
 
 
             }

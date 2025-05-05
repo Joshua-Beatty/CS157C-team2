@@ -161,7 +161,6 @@ app.post('/logout', (req, res) => {
 app.post('/enterqueue', async (req, res) => {
     // Retrieve current global lobby ID counter from Redis
     let queueId = await client.get('queue:counter');
-    let queueIsOpen = await client.get('queue:isOpen');
 
     // Global queue ID doesn't exist
     if (!queueId) {
@@ -170,38 +169,23 @@ app.post('/enterqueue', async (req, res) => {
         await client.set('queue:counter', 1000);
         queueId = await client.get('queue:counter');
     }
-    // Global queue:isOpen doesn't exist
-    else if (!queueIsOpen) {
-        console.log("Setting new queueIsOpen to 0 in Redis");
-        await client.set('queue:isOpen', 0);
-        queueIsOpen = await client.get('queue:isOpen');
-    }
 
+    // Key for queue
     const queue = `queue:${queueId}`
 
-    if (queueIsOpen == 1) {
-        // Enter queue
-        await client.zAdd(queue, [{score: 0, value: req.session.user}]);
+    // Enter queue
+    const user = req.session.user;
+    // Score 0 means user is not ready
+    await client.zAdd(queue, [{score: 0, value: user}]);
 
-        // Get new queue size
-        const queueSize = await client.zCard(queue);
-        // Get number of players ready
-        const readySize = await client.zCount(queue, 1, 1);
-        return res.json({ success: true, queueId: queueId, queueSize: queueSize, readySize: readySize});
+    // Get new queue size
+    const queueSize = await client.zCard(queue);
+    // Get number of players ready (number of players whose score == 1)
+    const readySize = await client.zCount(queue, 1, 1);
 
-    }
-    else {
-        // Open queue and enter it
-        await client.set('queue:isOpen', 1);
-        await client.zAdd(queue, [{score: 0, value: req.session.user}]);
+    // Return queueId, queueSize, readySize
+    return res.json({ success: true, queueId: queueId, queueSize: queueSize, readySize: readySize});
 
-        // Get new queue size
-        const queueSize = await client.zCard(queue);
-        // Get number of players ready
-        const readySize = await client.zCount(queue, 1, 1);
-        return res.json({ success: true, queueId: queueId, queueSize: queueSize, readySize: readySize});
-
-    }
 
 });
 
@@ -210,10 +194,11 @@ app.post('/readyup', async (req, res) => {
     // Get queueId from request
     const { queueId } = req.body;
 
+    // Keys for user and queue in Redis database
     const user = req.session.user;
     const queue = `queue:${queueId}`;
 
-    // Set score to 1 in queue (means user is ready)
+    // Set existing score to 1 in queue (means user is ready)
     await client.zAdd(queue, [{score: 1, value: user}]);
     
     // Get number of ready players and size of queue
@@ -222,7 +207,7 @@ app.post('/readyup', async (req, res) => {
 
     // If this player is the last player to ready up
     if (readySize == queueSize) {
-        // Set player last ready
+        // Set this player as last ready
         await client.set(`queue:${queueId}:lastReady`, user);
         return res.json({ success: true, queueSize: queueSize, readySize: readySize, lastReady: true});
     }
@@ -239,6 +224,8 @@ app.post('/readyup', async (req, res) => {
 app.post('/queuestatus', async (req, res) => {
     // Get queueId from request
     const { queueId } = req.body;
+
+    // Key for queue in Redis
     const queue = `queue:${queueId}`;
 
     // Query queue size and ready size from 
