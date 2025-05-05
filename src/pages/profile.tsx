@@ -13,7 +13,7 @@ function Profile()
     useEffect(() => {
         const fetchProfile = async () => {
             try {
-                const response = await axios.get('http://localhost:5000/profile', { withCredentials: true});
+                const response = await axios.get('http://localhost:3000/profile', { withCredentials: true});
                 setMessage(response.data.message);
                 if (response.data.success) {
                     setIsLoggedIn(true);
@@ -39,7 +39,7 @@ function Profile()
     // User logs out
     const handleLogout = async () => {
         try {
-            const response = await axios.post('http://localhost:5000/logout', null, { withCredentials: true});
+            const response = await axios.post('http://localhost:3000/logout', null, { withCredentials: true});
             setMessage(response.data.message);
 
             // Redirect to home page

@@ -82,7 +82,7 @@ export class Queue extends Scene
     async enterQueue()
     {
         try {
-            const response = await axios.post('http://localhost:5000/enterqueue', {}, {
+            const response = await axios.post('http://localhost:3000/enterqueue', {}, {
                 withCredentials: true
             });
 
@@ -151,7 +151,7 @@ export class Queue extends Scene
         }
         else {
             try {
-                const response = await axios.post('http://localhost:5000/queuestatus', {
+                const response = await axios.post('http://localhost:3000/queuestatus', {
                     queueId: this.queueId,
                 }, {
                     withCredentials: true
@@ -189,7 +189,7 @@ export class Queue extends Scene
     async readyUp()
     {
         try {
-            const response = await axios.post('http://localhost:5000/readyup', {
+            const response = await axios.post('http://localhost:3000/readyup', {
                 // Send lobbyId
                 queueId: this.queueId,
             }, {

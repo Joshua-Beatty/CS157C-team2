@@ -75,7 +75,7 @@ export class Game extends Scene
         if (this.currentWordIndex >= this.wordList.length) return;
         
         try {
-            const response = await axios.post("http://localhost:5000/checkzone", {
+            const response = await axios.post("http://localhost:3000/checkzone", {
                 gameId: this.gameId,
                 currentWord: this.wordList[this.currentWordIndex]
             }, {
@@ -105,7 +105,7 @@ export class Game extends Scene
     async updateZoneDisplay() {
         try {
             // Fetch latest zone list
-            const response = await axios.post("http://localhost:5000/getzonelist", {
+            const response = await axios.post("http://localhost:3000/getzonelist", {
                 gameId: this.gameId
             }, {
                 withCredentials: true
@@ -256,7 +256,7 @@ export class Game extends Scene
     // Update leader status and zone position
     async updateLeaderStatus() {
         try {
-            const response = await axios.post("http://localhost:5000/updateleader", {
+            const response = await axios.post("http://localhost:3000/updateleader", {
                 gameId: this.gameId,
                 wordCount: this.currentWordIndex
             }, {
@@ -285,7 +285,7 @@ export class Game extends Scene
     // Get leader kills
     async getLeaderKills() {
         try {
-            const response = await axios.post("http://localhost:5000/getleaderkills", {
+            const response = await axios.post("http://localhost:3000/getleaderkills", {
                 gameId: this.gameId
             }, {
                 withCredentials: true
@@ -393,14 +393,14 @@ export class Game extends Scene
         // Get player who is last to ready
         if (!this.gameStarted) {
             try {
-                const response = await axios.get("http://localhost:5000/lastready", {
+                const response = await axios.get("http://localhost:3000/lastready", {
                     withCredentials: true
                 });
     
                 // Set this.gameId
                 this.gameId = response.data.gameId;
     
-                const userResponse = await axios.get("http://localhost:5000/user", {
+                const userResponse = await axios.get("http://localhost:3000/user", {
                     withCredentials: true
                 });
     
@@ -415,7 +415,7 @@ export class Game extends Scene
                     
     
                     // Call startgame endpoint with created wordList
-                    const gameResponse = await axios.post("http://localhost:5000/startgame", {
+                    const gameResponse = await axios.post("http://localhost:3000/startgame", {
                         gameId: this.gameId,
                         wordList: this.wordList
                     }, {
@@ -457,7 +457,7 @@ export class Game extends Scene
         // Game has started, so fetch it
         try {
 
-            const response = await axios.post("http://localhost:5000/fetchgame", {
+            const response = await axios.post("http://localhost:3000/fetchgame", {
                 gameId: this.gameId
             }, {
                 withCredentials: true
@@ -483,7 +483,7 @@ export class Game extends Scene
 
     async waitGameStart() {
         try {
-            const response = await axios.post("http://localhost:5000/checkgameready", {
+            const response = await axios.post("http://localhost:3000/checkgameready", {
                 gameId: this.gameId
             }, {
                 withCredentials: true
@@ -515,7 +515,7 @@ export class Game extends Scene
 
     async updateGameStatus() {
         try {
-            const response = await axios.post("http://localhost:5000/fetchgame", {
+            const response = await axios.post("http://localhost:3000/fetchgame", {
                 gameId: this.gameId
             }, {
                 withCredentials: true
