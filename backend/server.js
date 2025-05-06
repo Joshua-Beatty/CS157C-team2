@@ -382,6 +382,10 @@ app.post('/readyup', async (req, res) => {
     if (readySize == queueSize) {
         // Set this player as last ready
         await client.set(`queue:${queueId}:lastReady`, user);
+
+        // LOCK THE QUEUE ID to prevent race conditions
+        await client.set(`queue:${queueId}:locked`, 1);
+
         return res.json({ success: true, queueSize: queueSize, readySize: readySize, lastReady: true});
     }
     else {
@@ -436,11 +440,12 @@ app.post('/startgame', async (req, res) => {
     // Get gameId and wordList from last readied player
     const { gameId, wordList } = req.body;
 
-    // Increment queue:counter
-    await client.incr("queue:counter");
+    // Set game:<gameId>:ready to 1 after creating game, for other users to join game
+    await client.set(`game:${gameId}:ready`, 1);
 
     // Get all players from queue
     const players = await client.zRange(`queue:${gameId}`, 0, -1);
+
     // Add each player to a new game in Redis database
     for (let i = 0; i < players.length; i++) {
         const player = players[i];
@@ -460,24 +465,15 @@ app.post('/startgame', async (req, res) => {
 
     // Set zoneIndex to 0
     await client.set(`game:${gameId}:zoneIndex`, -2);
-    
 
-    // Set game:<gameId>:ready to 1 after creating game, for other users to join game
-    await client.set(`game:${gameId}:ready`, 1);
+    await client.del(`queue:${gameId}:locked`);
+
+    // Increment queue:counter
+    await client.incr("queue:counter");
+    
     return res.json({success: true});
 
 })
-
-// In server.js
-app.get('/getgameid', async (req, res) => {
-    // Get current queueId
-    const queueId = await client.get("queue:counter");
-    
-    // Get the actual game ID (one less than current queue ID)
-    const gameId = parseInt(queueId) - 1;
-    
-    return res.json({ success: true, gameId: gameId.toString() });
-});
 
 // Check game ready (for all players other than last readied player)
 app.post('/checkgameready', async (req, res) => {
@@ -493,6 +489,34 @@ app.post('/checkgameready', async (req, res) => {
         return res.json({ success: true, gameReady: false});
     }
 })
+
+// Add to server.js
+app.post('/lockqueueid', async (req, res) => {
+    const { queueId } = req.body;
+    
+    // Set a lock flag to prevent ID conflicts during game creation
+    await client.set(`queue:${queueId}:locked`, 1);
+    
+    return res.json({ success: true });
+});
+
+app.get('/getgameid', async (req, res) => {
+    // Get current queueId
+    const queueId = await client.get("queue:counter");
+    
+    // Check if previous queue is locked (game creation in progress)
+    const prevQueueId = (parseInt(queueId) - 1).toString();
+    const isLocked = await client.get(`queue:${prevQueueId}:locked`);
+    
+    // If previous queue is locked, use that ID instead
+    if (isLocked === '1') {
+        return res.json({ success: true, gameId: prevQueueId });
+    }
+    
+    // Otherwise, use actual game ID (one less than current queue ID)
+    const gameId = parseInt(queueId) - 1;
+    return res.json({ success: true, gameId: gameId.toString() });
+});
 
 app.post('/updategame', async (req, res) => {
     const { gameId, hp, currentLineIndex } = req.body;
