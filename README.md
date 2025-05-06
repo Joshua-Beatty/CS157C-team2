@@ -1,5 +1,7 @@
-# CS157C-team2
+# Type99
 CS157C Team 2 Project
+
+Alex Luong & Lac-Phong Nguyen
 
 To run on localhost:8080 :
 
