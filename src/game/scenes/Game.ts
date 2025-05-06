@@ -15,6 +15,7 @@ export class Game extends Scene
 
     // Keep track of this game's ID
     gameId: string | null = null;
+    static currentGameId: string | null = null;
 
     // Keep track of if game started (wait for last readied player to create game)
     gameStarted: boolean = false;
@@ -164,15 +165,20 @@ export class Game extends Scene
     async startGameFromBackend() {
         // Game is not started yet
         // The last readied user will start it
+        let lastReadyUser = null;
         if (!this.gameStarted) {
             try {
                 // Retrieve last readied user
-                const response = await axios.get("http://localhost:3000/lastready", {
-                    withCredentials: true
-                });
+                if (!Game.currentGameId) {
+                    const response = await axios.get("http://localhost:3000/lastready", {
+                        withCredentials: true
+                    });
+                    Game.currentGameId = response.data.gameId;
+                    lastReadyUser = response.data.lastReady;
+                }
     
                 // Set this.gameId
-                this.gameId = response.data.gameId;
+                this.gameId = Game.currentGameId;
     
                 // Retrieve this current user
                 const userResponse = await axios.get("http://localhost:3000/user", {
@@ -180,33 +186,34 @@ export class Game extends Scene
                 });
     
                 // Check if this current user == last readied user
-                if (userResponse.data.userId == response.data.lastReady) {
+                if (userResponse.data.user == lastReadyUser) {
     
                     // Last readied user will generate first 10 words randomly using this.wordBank
                     this.wordList = this.wordBank.sort(() => 0.5 - Math.random()).slice(0, 10);
 
-    
-                    // Call startgame endpoint with created wordList
-                    const gameResponse = await axios.post("http://localhost:3000/startgame", {
-                        gameId: this.gameId,
-                        wordList: this.wordList
-                    }, {
-                        withCredentials: true
-                    });
-    
-                    if (gameResponse.data.success) {
-                        // Last readied user's game starts
-                        this.gameStarted = true;
-                        // Enter fetchGameStatus loop
-                        await this.fetchGameStatusWhile();
+                    try {
+                        const gameResponse = await axios.post("http://localhost:3000/startgame", {
+                            gameId: this.gameId,
+                            wordList: this.wordList
+                        }, {
+                            withCredentials: true
+                        });
+                        
+                        if (gameResponse.data.success) {
+                            this.gameStarted = true;
+                            await this.fetchGameStatusWhile();
+                        } else {
+                            console.log("Failed to start game:", gameResponse.data.message);
+                            // Maybe implement a retry mechanism or fallback
+                        }
+                    } catch (error) {
+                        console.error("Error starting game:", error);
                     }
-    
-    
-    
                 }
                 // Not readied user
                 else {
                     // Wait for game data to appear in database
+                    console.log("now i am here now!")
                     await this.waitGameStartWhile();
     
     
@@ -247,16 +254,6 @@ export class Game extends Scene
     // Called per loop of waitGameStartWhile()
     async waitGameStart() {
         try {
-            // First, make sure we have the correct game ID
-            const gameIdResponse = await axios.get("http://localhost:3000/getgameid", {
-                withCredentials: true
-            });
-
-            if (gameIdResponse.data.success) {
-                // Update our game ID to ensure consistency
-                this.gameId = gameIdResponse.data.gameId;
-            }
-            
             // Check if game is ready in Redis database, pass gameId to backend
             const response = await axios.post("http://localhost:3000/checkgameready", {
                 gameId: this.gameId
@@ -330,16 +327,6 @@ export class Game extends Scene
             if (this.died) {
                 this.playerDied();
             }
-
-
-
-
-
-
-
-
-
-
             // Update display after everything is fetched
             // await this.updatePersonalDisplay();
             
