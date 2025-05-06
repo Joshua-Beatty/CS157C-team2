@@ -468,6 +468,17 @@ app.post('/startgame', async (req, res) => {
 
 })
 
+// In server.js
+app.get('/getgameid', async (req, res) => {
+    // Get current queueId
+    const queueId = await client.get("queue:counter");
+    
+    // Get the actual game ID (one less than current queue ID)
+    const gameId = parseInt(queueId) - 1;
+    
+    return res.json({ success: true, gameId: gameId.toString() });
+});
+
 // Check game ready (for all players other than last readied player)
 app.post('/checkgameready', async (req, res) => {
     const { gameId } = req.body;
