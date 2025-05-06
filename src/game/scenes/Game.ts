@@ -227,7 +227,7 @@ export class Game extends Scene
             await this.waitGameStart();
 
             // Check for game ready every 1 second
-            await new Promise(resolve => setTimeout(resolve, 1000));
+            // await new Promise(resolve => setTimeout(resolve, 1000));
         }
 
         // Game has started, so fetch it
@@ -272,7 +272,7 @@ export class Game extends Scene
             await this.fetchGameStatus();
 
             // Update game status every 1 second
-            await new Promise(resolve => setTimeout(resolve, 1000));
+            // await new Promise(resolve => setTimeout(resolve, 1000));
         }
 
         // IF GAME IS OVER LOGIC HERE!
