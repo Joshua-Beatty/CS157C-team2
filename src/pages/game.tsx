@@ -1,10 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
 import { IRefPhaserGame, PhaserGame } from '../PhaserGame';
 import { Queue } from '../game/scenes/Queue';
-import Link from 'next/link';
+import { Game } from '../game/scenes/Game';
+import { useRouter } from 'next/router';
+import axios from 'axios';
 
-function Game()
-{
+function GameController() {
+    const router = useRouter();
     //  References to the PhaserGame component (game and scene are exposed)
     const phaserRef = useRef<IRefPhaserGame | null>(null);
 
@@ -16,18 +18,113 @@ function Game()
     // Game status message
     const [statusMessage, setStatusMessage] = useState('PRESS QUEUE TO START');
 
+    // Add game state tracking
+    const [inGame, setInGame] = useState(false);
+
+    const [sceneReady, setSceneReady] = useState(false);
+
+    // Function to handle leaving the game or queue
+    const handleLeaveGame = async () => {
+        if (!phaserRef.current) {
+            router.push('/profile');
+            return;
+        }
+        
+        // Get game info directly from the Phaser game
+        const gameInfo = phaserRef.current.getCurrentGameInfo();
+        
+        // If user is in a game
+        if (inGame && gameInfo.gameId && gameInfo.userId) {
+            try {
+                // Call leaveGame on the Game scene to stop the game loop
+                if (phaserRef.current && phaserRef.current.scene) {
+                    const gameScene = phaserRef.current.scene as Game;
+                    if (gameScene && gameScene.leaveGame) {
+                        gameScene.leaveGame();
+                    }
+                }
+                const response = await axios.post('http://localhost:3000/leavegame', {
+                    gameId: gameInfo.gameId,
+                    user: gameInfo.userId
+                }, {
+                    withCredentials: true
+                });
+                
+                console.log('Left game successfully:', response.data);
+                setStatusMessage('LEFT GAME SUCCESSFULLY');
+                // Navigate to profile page
+                router.push('/profile');
+            } catch (error) {
+                console.error('Error leaving game:', error);
+                setStatusMessage('ERROR LEAVING GAME');
+            }
+        } 
+        // If user is in a queue but not in game yet
+        else if (!inGame && gameInfo.gameId && gameInfo.userId) {
+            try {
+                const response = await axios.post('http://localhost:3000/leavequeue', {
+                    queueId: gameInfo.gameId,
+                    user: gameInfo.userId
+                }, {
+                    withCredentials: true
+                });
+                
+                console.log('Left queue successfully:', response.data);
+                setStatusMessage('LEFT QUEUE SUCCESSFULLY');
+                
+                // Reset UI state
+                setIsQueued(false);
+                setCantReady(true);
+                
+                // Reset Queue scene state if possible
+                if (phaserRef.current && phaserRef.current.scene && 
+                    phaserRef.current.scene.scene.key === 'Queue') {
+                    const queueScene = phaserRef.current.scene as Queue;
+                    // Reset queue scene variables
+                    queueScene.queueId = null;
+                    queueScene.gameStarted = false;
+                    queueScene.queueText.setText('PRESS QUEUE TO FIND A GAME');
+                    queueScene.readyText.setText('');
+                    queueScene.playersReadyText.setText('');
+                    queueScene.gameStartText.setText('');
+                }
+                
+            } catch (error) {
+                console.error('Error leaving queue:', error);
+                setStatusMessage('ERROR LEAVING QUEUE');
+            }
+        } else {
+            // Not in game or queue - just go back to profile
+            console.log('Not currently in a game or queue - returning to profile');
+            setStatusMessage('RETURNING TO PROFILE');
+            router.push('/profile');
+        }
+    };
+
     // ENTER QUEUE
     const enterQueue = () => {
-        if(phaserRef.current)
-        {     
-            const scene = phaserRef.current.scene as Queue;
-            
-            if (scene)
-            {
-                scene.enterQueue();
-                setCantReady(false);
-                setIsQueued(true);
-                setStatusMessage('IN QUEUE - READY UP!');
+        if (phaserRef.current && phaserRef.current.scene) {
+            try {
+                // Check if scene is Queue before casting
+                if (phaserRef.current.scene.scene.key === 'Queue') {
+                    const scene = phaserRef.current.scene as Queue;
+                    
+                    if (scene && scene.enterQueue) {
+                        scene.enterQueue();
+                        setCantReady(false);
+                        setIsQueued(true);
+                        setStatusMessage('IN QUEUE - READY UP!');
+                    } else {
+                        console.error("Queue scene missing enterQueue method");
+                        setStatusMessage('ERROR: QUEUE UNAVAILABLE');
+                    }
+                } else {
+                    console.error("Current scene is not Queue");
+                    setStatusMessage('ERROR: NOT IN QUEUE SCENE');
+                }
+            } catch (error) {
+                console.error("Error accessing Queue scene:", error);
+                setStatusMessage('ERROR: QUEUE ERROR');
             }
         }
     }
@@ -47,25 +144,14 @@ function Game()
         }
     }
 
-    const startGame = () => {
-        if (phaserRef.current)
-            {
-                const scene = phaserRef.current.scene as Queue;
-    
-                if (scene)
-                {
-                    scene.changeScene();
-                    setStatusMessage('GAME STARTING...');
-                }
-            }
-    }
-
 
     // Event emitted from the PhaserGame component
     const currentScene = (scene: Phaser.Scene) => {
-
-        // setCantMoveSprite(scene.scene.key !== 'MainMenu');
+        // Update inGame state based on the current scene
+        setInGame(scene.scene.key === 'Game');
         
+        // Add this line to track when scene is ready
+        setSceneReady(true);
     }
 
     useEffect(() => {
@@ -85,6 +171,8 @@ function Game()
         
         return () => clearInterval(interval);
     }, []);
+
+    
 
     return (
         <div className="game-container">
@@ -123,13 +211,13 @@ function Game()
                     </div>
                     
                     <div>
-                        <button 
-                            disabled={isQueued} 
-                            className="button queue-button" 
-                            onClick={enterQueue}
-                        >
-                            QUEUE
-                        </button>
+                    <button 
+                        disabled={isQueued || !sceneReady} 
+                        className="button queue-button" 
+                        onClick={enterQueue}
+                    >
+                        QUEUE
+                    </button>
                     </div>
                     
                     <div>
@@ -142,21 +230,13 @@ function Game()
                         </button>
                     </div>
                     
-                    <div>
-                        <button 
-                            className="button start-button" 
-                            onClick={startGame}
-                        >
-                            START GAME
-                        </button>
-                    </div>
-                    
                     <div style={{ marginTop: '20px' }}>
-                        <Link href="/profile">
-                            <button className="button back-button">
-                                BACK TO PROFILE
-                            </button>
-                        </Link>
+                    <button 
+                        className="button back-button" 
+                        onClick={handleLeaveGame}
+                    >
+                        {inGame ? 'LEAVE GAME' : (isQueued ? 'LEAVE QUEUE' : 'BACK TO PROFILE')}
+                    </button>
                     </div>
                 </div>
             </div>
@@ -164,4 +244,4 @@ function Game()
     );
 }
 
-export default Game
+export default GameController

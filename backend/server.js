@@ -332,6 +332,8 @@ app.post('/logout', (req, res) => {
 
 // Enter queue endpoint
 app.post('/enterqueue', async (req, res) => {
+    const { user } = req.body;
+
     // Retrieve current global lobby ID counter from Redis
     let queueId = await client.get('queue:counter');
 
@@ -346,8 +348,6 @@ app.post('/enterqueue', async (req, res) => {
     // Key for queue
     const queue = `queue:${queueId}`
 
-    // Enter queue
-    const user = req.session.user;
     // Score 0 means user is not ready
     await client.zAdd(queue, [{score: 0, value: user}]);
 
@@ -365,10 +365,9 @@ app.post('/enterqueue', async (req, res) => {
 // Ready up endpoint
 app.post('/readyup', async (req, res) => {
     // Get queueId from request
-    const { queueId } = req.body;
+    const { queueId, user } = req.body;
 
     // Keys for user and queue in Redis database
-    const user = req.session.user;
     const queue = `queue:${queueId}`;
 
     // Set existing score to 1 in queue (means user is ready)
@@ -440,8 +439,7 @@ app.get('/user', (req, res) => {
 // Start game endpoint (only for last readied player)
 app.post('/startgame', async (req, res) => {
     // Get gameId and wordList from last readied player
-    const { gameId, wordList } = req.body;
-    const user = req.session.user;
+    const { gameId, wordList, user } = req.body;
 
     // IMPORTANT: Check if this user is actually the last one who readied up
     const lastReadyUser = await client.get(`queue:${gameId}:lastReady`);
@@ -543,11 +541,12 @@ app.get('/getgameid', async (req, res) => {
 });
 
 app.post('/updategame', async (req, res) => {
-    const { gameId, hp, currentLineIndex } = req.body;
-    const user = req.session.user;
+    const { gameId, hp, currentLineIndex, user } = req.body;
+
+    const lineIndexNumber = parseInt(currentLineIndex) || 0;
 
     // Set new currentLineIndex for this player, in case it's updated
-    await client.zAdd(`game:${gameId}:wordLines`, [{score: currentLineIndex, value: user}]);
+    await client.zAdd(`game:${gameId}:wordLines`, [{score: lineIndexNumber, value: user}]);
 
     // Check if player is in zone
     const lineIndex = await client.zScore(`game:${gameId}:wordLines`, user);
@@ -571,7 +570,7 @@ app.post('/updategame', async (req, res) => {
         }
     }
 
-
+    return res.json({ success: true });
 
 })
 
@@ -607,13 +606,38 @@ app.post('/updategame', async (req, res) => {
 
 // Fetch game endpoint (each user uses this to update their display of other users' status)
 app.post('/fetchgame', async (req, res) => {
-    const { gameId } = req.body;
-    const user = req.session.user;
+    const { gameId, user } = req.body;
+    
+    // Transform the flattened array into a proper object
+    const playerWordLines = {};
+    if (Object.keys(playerWordLines).length === 0 || playerWordLines[user] === undefined) {
+        // Direct score check if the first approach fails
+        const directScore = await client.zScore(`game:${gameId}:wordLines`, user);
+        
+        if (directScore !== null) {
+            playerWordLines[user] = parseInt(directScore) || 0;
+        } else {
+            // Last resort - default to 0 for this player
+            playerWordLines[user] = 0;
+        }
+    }
+    
+    
+    // Do the same transformation for player HPs
+    const rawPlayerHps = await client.zRange(`game:${gameId}:hps`, 0, -1, {WITHSCORES: true});
+    const playerHps = {};
+    if (Object.keys(playerHps).length === 0 || playerHps[user] === undefined) {
+        // Direct score check if the first approach fails
+        const directScore = await client.zScore(`game:${gameId}:hps`, user);
+        
+        if (directScore !== null) {
+            playerHps[user] = parseInt(directScore) || 0;
+        } else {
+            // Last resort - default to 0 for this player
+            playerHps[user] = 0;
+        }
+    }
 
-    // Get player HPs with scores (ascending order)
-    const playerHps = await client.zRange(`game:${gameId}:hps`, 0, -1, {WITHSCORES: true});
-    // Get player word lines with scores (ascending order)
-    const playerWordLines = await client.zRange(`game:${gameId}:wordLines`, 0, -1, {WITHSCORES: true});
     // Get word list
     const wordList = await client.lRange(`game:${gameId}:wordList`, 0, -1);
     // Check if user is in zone
@@ -632,7 +656,7 @@ app.post('/fetchgame', async (req, res) => {
 
     //console.log("word list:" + wordList)
     return res.json({ success: true, playerHps: playerHps, playerWordLines: playerWordLines, 
-        wordList: wordList, hp:hp, inZone: inZone, died: died });
+        wordList: wordList, hp: hp, inZone: inZone, died: died });
 
 })
 
@@ -693,11 +717,10 @@ app.post('/fetchgame', async (req, res) => {
 
 // Updates current leader in game
 app.post('/updateleader', async (req, res) => {
-    const { gameId, currentLineIndex, newWords } = req.body;
-    const user = req.session.user;
+    const { gameId, currentLineIndex, newWords, leader } = req.body;
 
     // Set new leader
-    await client.set(`game:${gameId}:leader`, user);
+    await client.set(`game:${gameId}:leader`, leader);
     // Set new zone index
     const zoneIndex = currentLineIndex - 2;
     await client.set(`game:${gameId}:zoneIndex`, zoneIndex);
@@ -770,12 +793,112 @@ app.post('/updateleader', async (req, res) => {
 
 // Gets leader kills
 app.post('/getleaderkills', async (req, res) => {
-    const { gameId } = req.body;
-    const user = req.session.user;
+    const { gameId, leader } = req.body;
     
-    const kills = await client.get(`game:${gameId}:${user}:kills`) || 0;
+    const kills = await client.get(`game:${gameId}:${leader}:kills`) || 0;
     
     return res.json({ success: true, kills: parseInt(kills) });
+});
+
+app.post('/leavegame', async (req, res) => {
+    const { gameId, user } = req.body;
+    console.log("Leaving game - gameId:", gameId, "user:", user);
+
+    try {
+        // 1. Remove user from the main players list
+        await client.lRem(`game:${gameId}`, 0, user);
+        
+        // 2. Remove user from HP tracking sorted set
+        await client.zRem(`game:${gameId}:hps`, user);
+        
+        // 3. Remove user from word lines (progress) tracking sorted set
+        await client.zRem(`game:${gameId}:wordLines`, user);
+        
+        // 4. Add a kill to leader (only if there is a leader)
+        const leader = await client.get(`game:${gameId}:leader`);
+        if (leader) {
+            // Make sure to only proceed if leader is a valid string
+            if (typeof leader === 'string' && leader.trim() !== '') {
+                const killsKey = `game:${gameId}:${leader}:kills`;
+                console.log("Using kills key:", killsKey); // Add this log
+                try {
+                    const kills = await client.get(killsKey);
+                    if (kills == null) {
+                        await client.set(killsKey, 1);
+                    } else {
+                        await client.incr(killsKey);
+                    }
+                } catch (err) {
+                    console.error("Redis error with key", killsKey, err);
+                    // Continue execution even if this fails
+                }
+            }
+        }
+        
+        // 5. Check if this was the leader who left
+        if (user === leader) {
+            // Find new leader (player with highest word line score)
+            const players = await client.zRevRange(`game:${gameId}:wordLines`, 0, 0);
+            if (players.length > 0) {
+                const newLeader = players[0];
+                await client.set(`game:${gameId}:leader`, newLeader);
+                console.log(`New leader set to ${newLeader} after ${user} left`);
+            }
+        }
+        
+        return res.json({ success: true, message: "Successfully left the game" });
+    } catch (error) {
+        console.error("Error while leaving game:", error);
+        console.error("Error details:", JSON.stringify(error, null, 2));
+        console.error("Stack trace:", error.stack);
+        return res.json({ success: false, message: "Error leaving game" });
+    }
+});
+
+// Add this to your server.js file
+app.post('/leavequeue', async (req, res) => {
+    const { queueId, user } = req.body;
+    
+    if (!queueId || !user) {
+        return res.json({ success: false, message: "Missing queueId or user" });
+    }
+    
+    try {
+        // Key for queue in Redis
+        const queue = `queue:${queueId}`;
+        
+        // Remove user from the queue
+        const removed = await client.zRem(queue, user);
+        
+        if (removed) {
+            // Get updated queue size and ready size
+            const queueSize = await client.zCard(queue);
+            const readySize = await client.zCount(queue, 1, 1);
+            
+            console.log(`User ${user} removed from queue ${queueId}. Remaining: ${queueSize} players, ${readySize} ready`);
+            
+            // If queue is now empty, clean up queue resources
+            if (queueSize === 0) {
+                await client.del(queue);
+                await client.del(`queue:${queueId}:lastReady`);
+                await client.del(`queue:${queueId}:locked`);
+                console.log(`Queue ${queueId} deleted as it's now empty`);
+            }
+            
+            return res.json({ 
+                success: true, 
+                message: "Successfully left queue",
+                queueSize: queueSize,
+                readySize: readySize
+            });
+        } else {
+            console.log(`User ${user} not found in queue ${queueId}`);
+            return res.json({ success: false, message: "User not found in queue" });
+        }
+    } catch (error) {
+        console.error('Error leaving queue:', error);
+        return res.json({ success: false, message: "Error leaving queue" });
+    }
 });
 
 

@@ -12,6 +12,27 @@ export class Queue extends Scene {
     readyText: GameObjects.Text;
     playersReadyText: GameObjects.Text;
     gameStartText: GameObjects.Text;
+    userId: string | null = null;
+
+    async getUserInfo() {
+        try {
+            const response = await axios.get("http://localhost:3000/user", {
+                withCredentials: true
+            });
+            
+            if (response.data.success) {
+                this.userId = response.data.user;
+                console.log(`User ID set: ${this.userId}`);
+                return true;
+            } else {
+                console.error("Failed to get user info:", response.data.message);
+                return false;
+            }
+        } catch (error) {
+            console.error("Error getting user info:", error);
+            return false;
+        }
+    }
 
     constructor() {
         super('Queue');
@@ -20,6 +41,12 @@ export class Queue extends Scene {
     preload() {
         // Load the WebFont script dynamically
         this.load.script('webfont', 'https://ajax.googleapis.com/ajax/libs/webfont/1.6.26/webfont.js');
+
+        this.getUserInfo().then(success => {
+            if (!success) {
+                console.warn("Failed to get user info during preload, will retry during create");
+            }
+        });
     }
 
     create() {
@@ -29,13 +56,46 @@ export class Queue extends Scene {
             google: {
                 families: ['Press Start 2P']
             },
-            active: () => {
+            active: async () => {
+                // If user ID wasn't set during preload, try again
+                if (!this.userId) {
+                    await this.getUserInfo();
+                }
+                
+                // Create game elements regardless of user info success
+                // (we'll handle any user-related issues inside createGameElements)
                 this.createGameElements();
             }
         });
     }
 
     createGameElements() {
+        // Add user verification at the beginning of this method
+        if (!this.userId) {
+            // Display a warning if we still don't have user info
+            const errorText = this.add.text(512, 100, 'User info not loaded. Some features may not work properly.', {
+                fontFamily: '"Press Start 2P"', 
+                fontSize: '16px',
+                color: '#ff0000',
+                stroke: '#000000', 
+                strokeThickness: 6,
+                align: 'center'
+            }).setOrigin(0.5).setDepth(101);
+            
+            // Start a retry timer for user info
+            this.time.addEvent({
+                delay: 2000,
+                callback: async () => {
+                    const success = await this.getUserInfo();
+                    if (success) {
+                        errorText.destroy();
+                    }
+                },
+                callbackScope: this,
+                loop: true
+            });
+        }
+
         // Queue Text
         this.queueText = this.add.text(512, 200, 'PRESS QUEUE TO FIND A GAME', {
             fontFamily: '"Press Start 2P"', 
@@ -130,7 +190,9 @@ export class Queue extends Scene {
     // Enter queue when Enter Queue button is pressed
     async enterQueue() {
         try {
-            const response = await axios.post('http://localhost:3000/enterqueue', {}, {
+            const response = await axios.post('http://localhost:3000/enterqueue', {
+                user: this.userId
+            }, {
                 withCredentials: true
             });
 
@@ -177,7 +239,6 @@ export class Queue extends Scene {
         if (this.gameStarted) {
             // Set game information text
             this.gameStartText.setText('All players ready! Starting game...');
-
             // Wait 1 second before starting game
             await new Promise(resolve => setTimeout(resolve, 1000));
             await this.startGame();
@@ -230,6 +291,7 @@ export class Queue extends Scene {
             const response = await axios.post('http://localhost:3000/readyup', {
                 // Send lobbyId
                 queueId: this.queueId,
+                user: this.userId
             }, {
                 withCredentials: true
             });
