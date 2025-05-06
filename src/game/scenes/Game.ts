@@ -170,7 +170,7 @@ export class Game extends Scene
             try {
                 // Retrieve last readied user
                 if (!Game.currentGameId) {
-                    const response = await axios.get("http://localhost:3000/lastReady", {
+                    const response = await axios.get("http://localhost:3000/lastready", {
                         withCredentials: true
                     });
                     Game.currentGameId = response.data.gameId;

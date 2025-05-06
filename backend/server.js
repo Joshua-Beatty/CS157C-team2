@@ -421,7 +421,7 @@ app.get('/lastready', async (req, res) => {
     const queueId = await client.get("queue:counter");
 
     // Get lastReady from that queueId
-    const userLastReady = await client.get(`queue:${queueId}:lastready`);
+    const userLastReady = await client.get(`queue:${queueId}:lastReady`);
 
     // Game ID is set to current Queue ID
     return res.json({ success: true, lastReady: userLastReady, gameId: queueId});
