@@ -15,6 +15,7 @@ export class Game extends Scene
 
     // Keep track of this game's ID
     gameId: string | null = null;
+    static currentGameId: string | null = null;
 
     // Keep track of if game started (wait for last readied player to create game)
     gameStarted: boolean = false;
@@ -164,15 +165,20 @@ export class Game extends Scene
     async startGameFromBackend() {
         // Game is not started yet
         // The last readied user will start it
+        let lastReadyUser = null;
         if (!this.gameStarted) {
             try {
                 // Retrieve last readied user
-                const response = await axios.get("http://localhost:3000/lastready", {
-                    withCredentials: true
-                });
+                if (!Game.currentGameId) {
+                    const response = await axios.get("http://localhost:3000/lastready", {
+                        withCredentials: true
+                    });
+                    Game.currentGameId = response.data.gameId;
+                    lastReadyUser = response.data.lastReady;
+                }
     
                 // Set this.gameId
-                this.gameId = response.data.gameId;
+                this.gameId = Game.currentGameId;
     
                 // Retrieve this current user
                 const userResponse = await axios.get("http://localhost:3000/user", {
@@ -180,7 +186,7 @@ export class Game extends Scene
                 });
     
                 // Check if this current user == last readied user
-                if (userResponse.data.userId == response.data.lastReady) {
+                if (userResponse.data.userId == lastReadyUser) {
     
                     // Last readied user will generate first 10 words randomly using this.wordBank
                     this.wordList = this.wordBank.sort(() => 0.5 - Math.random()).slice(0, 10);

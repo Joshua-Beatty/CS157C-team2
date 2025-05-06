@@ -440,6 +440,13 @@ app.post('/startgame', async (req, res) => {
     // Get gameId and wordList from last readied player
     const { gameId, wordList } = req.body;
 
+    // CHECK IF GAME ALREADY EXISTS to prevent duplicate creation
+    const gameExists = await client.exists(`game:${gameId}:wordList`);
+    if (gameExists) {
+        console.log(`Game ${gameId} already exists, skipping creation.`);
+        return res.json({ success: true });
+    }
+
     // Set game:<gameId>:ready to 1 after creating game, for other users to join game
     await client.set(`game:${gameId}:ready`, 1);
 
