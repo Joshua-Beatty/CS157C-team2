@@ -10,8 +10,8 @@ export class Game extends Scene
 
     // Keep track of this game client's player
     userId: string | null = null;
-    userHp: number | null = null;
-    userWordCount: number | null = null;
+    userHp: number = 5;
+    // userWordCount: number | null = null;
 
     // Keep track of this game's ID
     gameId: string | null = null;
@@ -19,7 +19,8 @@ export class Game extends Scene
     // Keep track of if game started (wait for last readied player to create game)
     gameStarted: boolean = false;
     // Keep track of game end (ends when only 1 player alive)
-    gameOver: boolean | null = null
+    gameOver: boolean = false;
+    died: boolean = false;
 
     // Contains text to be displayed on screen
     wordsText: Phaser.GameObjects.Text;
@@ -29,25 +30,45 @@ export class Game extends Scene
     killsText: Phaser.GameObjects.Text;
     leaderText: Phaser.GameObjects.Text;
 
+    // Top 10 list of players
+    topTenText: Phaser.GameObjects.Text;
+    firstPlayer: Phaser.GameObjects.Text;
+    secondPlayer: Phaser.GameObjects.Text;
+    thirdPlayer: Phaser.GameObjects.Text;
+    fourthPlayer: Phaser.GameObjects.Text;
+    fifthPlayer: Phaser.GameObjects.Text;
+    sixthPlayer: Phaser.GameObjects.Text;
+    seventhPlayer: Phaser.GameObjects.Text;
+    eighthPlayer: Phaser.GameObjects.Text;
+    ninthPlayer: Phaser.GameObjects.Text;
+    tenthPlayer: Phaser.GameObjects.Text;
+
+
     // Word Bank
     wordBank = ['apple', 'banana', 'cherry', 'date', 'elderberry', 'fig', 'grape', 'honeydew', 'kiwi', 'lemon', 'mango', 'nectarine', 'orange', 'papaya', 'quince', 'raspberry', 'strawberry', 'tangerine', 'watermelon', 'apricot', 'blueberry', 'cantaloupe', 'dragonfruit', 'eggplant', 'fennel', 'guava', 'hibiscus', 'iceberg', 'jalapeno', 'kumquat', 'lime', 'mulberry', 'nectarine', 'olive', 'persimmon', 'pineapple', 'plum', 'pomegranate', 'rhubarb', 'starfruit', 'tomato', 'unique', 'yam', 'zucchini', 'acorn', 'bagel', 'cat', 'dog', 'elephant', 'frog', 'giraffe', 'horse', 'iguana', 'jellyfish', 'kangaroo', 'lion', 'monkey', 'narwhal', 'octopus', 'parrot', 'quail', 'rabbit', 'snake', 'tiger', 'umbrella', 'vulture', 'walrus', 'xylophone', 'yak', 'zebra', 'antelope', 'bear', 'cow', 'dolphin', 'eagle', 'fox', 'gorilla', 'hippopotamus', 'iguana', 'jaguar', 'koala', 'lemur', 'moose', 'newt', 'opossum', 'penguin', 'quokka', 'raccoon', 'sloth', 'toucan', 'unicorn', 'viper', 'whale', 'xerus', 'yellowjacket', 'zebra', 'albatross', 'baboon', 'cactus', 'dingo', 'elk', 'fern', 'gecko', 'hawk', 'owl', 'penguin', 'quail', 'rooster', 'sparrow', 'toucan', 'vulture', 'warbler', 'xenops', 'yodeler', 'zebra', 'artichoke', 'blueberry', 'cabbage', 'daffodil', 'eucalyptus', 'fern', 'ginseng', 'hibiscus', 'ivy', 'juniper', 'kelp', 'lavender', 'marigold', 'nasturtium', 'oregano', 'petunia', 'quinoa', 'rosemary', 'sage', 'thyme', 'violet', 'wisteria', 'xenia', 'yucca', 'zinnia', 'acorn', 'ball', 'clock', 'door', 'elephant', 'flag', 'grape', 'hat', 'ink', 'jug', 'kite', 'lemon', 'mask', 'nut', 'octagon', 'park', 'queen', 'radio', 'ship', 'train', 'umbrella', 'vest', 'wagon', 'xylophone', 'yellow', 'zebra', 'axis', 'break', 'crane', 'drum', 'end', 'flare', 'gap', 'hunt', 'icon', 'joke', 'key', 'love', 'mark', 'neck', 'oval', 'park', 'quiz', 'rest', 'snap', 'tale', 'unit', 'void', 'wall', 'yoke', 'zest', 'arm', 'bend', 'cash', 'die', 'ear', 'fit', 'gun', 'ham', 'ink', 'joy', 'kit', 'lad', 'man', 'net', 'oil', 'pen', 'rat', 'sun', 'toy', 'urn', 'vat', 'win', 'yak', 'zip', 'aim', 'ball', 'coat', 'dust', 'egg', 'fan', 'grid', 'horn', 'ink', 'jam', 'log', 'mix', 'nap', 'odd', 'pit', 'rug', 'saw', 'tin', 'undo', 'vet', 'wig', 'you', 'zip', 'amber', 'bench', 'coat', 'deck', 'epic', 'fame', 'gear', 'hand', 'ice', 'jam', 'king', 'log', 'map', 'net', 'oak', 'pet', 'quiz', 'rug', 'sap', 'top', 'urn', 'van', 'web', 'yam', 'zoo', 'angle', 'bar', 'cast', 'deal', 'eel', 'flat', 'gash', 'heat', 'icon', 'jolt', 'king', 'lace', 'mile', 'net', 'oak', 'pit', 'queen', 'rag', 'sat', 'tin', 'urn', 'vet', 'win', 'yet', 'zone', 'alpha', 'bravo', 'charlie', 'delta', 'echo', 'foxtrot', 'golf', 'hotel', 'india', 'juliet', 'kilo', 'lima', 'mike', 'november', 'oscar', 'papa', 'quebec', 'romeo', 'sierra', 'tango', 'uniform', 'victor', 'whiskey', 'xray', 'yankee', 'zulu'];
 
+    // Accumulated word list
     wordList: string[] = [];
+    // Current 10 words for user to type
+    wordLine: string[] = [];
+    // Current word the user is on in the line
+    currentWordIndex = 0;
+    // Current line the user is on
+    currentLineIndex = 0;
+    // User input
+    wordsInput = '';
     
     // Zone properties
-    zoneList: string[] = [];
     inZone: boolean = false;
     playerHealth: number = 100; // Initial health value
     kills: number = 0;
     isLeader: boolean = false;
-    zoneTextObjects: Phaser.GameObjects.Text[] = [];
     
     // To store status of other players during game
     playerHps: Record<string, number> | null = null;
-    playerScores: Record<string, number> | null = null;
+    playerWordLines: Record<string, number> | null = null;
 
-    currentWordIndex = 0;
-    wordsInput = '';
+
 
     constructor ()
     {
@@ -98,6 +119,12 @@ export class Game extends Scene
         
         // Create zone status display
         this.zoneText = this.add.text(100, 80, 'Zone: Safe', {
+            fontFamily: 'Consolas', fontSize: '20px', color: '#00ff00',
+            stroke: '#000000', strokeThickness: 4
+        }).setDepth(100);
+
+        // Create top 10 players display
+        this.topTenText = this.add.text(100, 60, 'Current Top 10', {
             fontFamily: 'Consolas', fontSize: '20px', color: '#00ff00',
             stroke: '#000000', strokeThickness: 4
         }).setDepth(100);
@@ -258,26 +285,53 @@ export class Game extends Scene
     async fetchGameStatus() {
         try {
             const response = await axios.post("http://localhost:3000/fetchgame", {
-                gameId: this.gameId
+                gameId: this.gameId,
             }, {
                 withCredentials: true
             });
     
             // Update fields
             this.playerHps = response.data.playerHps;
-            this.playerScores = response.data.playerScores;
+            this.playerWordLines = response.data.playerWordLines;
             this.wordList = response.data.wordList;
-            this.zoneList = response.data.zoneList;
+            // Update wordLine using currentLineIndex
+            this.wordLine = this.wordList.slice(this.currentLineIndex*10, this.currentLineIndex*10+10);
+            this.playerHealth = response.data.hp;
+
+            this.inZone = response.data.inZone;
+            this.died = response.data.died;
 
             // Check zone status
-            this.checkZoneStatus();
+            // this.checkZoneStatus();
             
+            // Update display
+            this.wordsText.setText(this.wordLine.join(' '));
+
+            this.healthText.setText(`Health: ${this.playerHealth}`);
+
+            if (this.inZone) {
+                this.zoneText.setText('Zone: DANGER!');
+                this.zoneText.setColor('#ff0000');
+            } else {
+                this.zoneText.setText('Zone: Safe');
+                this.zoneText.setColor('#00ff00');
+            }
+
+            if (this.died) {
+                this.playerDied();
+            }
+
+
+
+
+
+
 
 
 
 
             // Update display after everything is fetched
-            await this.updatePersonalDisplay();
+            // await this.updatePersonalDisplay();
             
         }
         catch (error) {
@@ -286,15 +340,15 @@ export class Game extends Scene
     }
 
     // Update personal view of words
-    async updatePersonalDisplay() {
-        this.wordsText.setText(this.wordList.join(' '));
-        // MORE TO ADD (e.g. playerHps, playerScores, etc...)
-        // ...
-    }
+    // async updatePersonalDisplay() {
+    //     this.wordsText.setText(this.wordList.join(' '));
+    //     // MORE TO ADD (e.g. playerHps, playerScores, etc...)
+    //     // ...
+    // }
 
 
     async handleKeyPress(key: string) {
-        if (this.currentWordIndex < this.wordList.length) {
+        if (this.currentWordIndex < this.wordLine.length) {
             if (key === 'Backspace') {
                 // Remove most recent key if user presses backspace
                 // Do not remove space (makes sure user doesn't remove already completed words)
@@ -305,23 +359,31 @@ export class Game extends Scene
             else if (key === ' ') {
                 // Check if word is correct if user presses space
                 
-                // Get most recent space-separated word, or '' if no words
+                // Get most recent space-separated inputted word, or '' if no words
                 const currentWord = this.wordsInput.split(' ').pop() || '';
     
                 // Word is correct
-                if (currentWord === this.wordList[this.currentWordIndex]) {
+                if (currentWord === this.wordLine[this.currentWordIndex]) {
                     this.wordsInput += key;
                     this.currentWordIndex++;
                     
-                    // Update leader status if player might be leading
-                    if (await this.isPlayerLeading()) {
-                        this.updateLeaderStatus();
-                    }
-    
+
                     // Check if user is done
-                    if (this.currentWordIndex === this.wordList.length) {
-                        this.completed();
+                    if (this.currentWordIndex === this.wordLine.length) {
+                        await this.goToNextLine();
                     }
+                    // User is not done
+                    else {
+                        await this.updateGameStatus();
+                        await this.fetchGameStatus();
+                    }
+                }
+                // Word is not correct
+                else {
+
+                    await this.updateGameStatus();
+                    await this.fetchGameStatus();
+
                 }
             }
             // Only accept alphanumeric characters as user input
@@ -334,208 +396,245 @@ export class Game extends Scene
         }
     }
 
-    // Update game status in Redis database based on user input
-    async updateGameStatus() {
+    // When the user finishes typing all words in the current line
+    async goToNextLine() {
+        // Increment current line the user is on
+        this.currentLineIndex++;
+        // Reset current word index of the user
+        this.currentWordIndex = 0;
+        // Clear input words
+        this.wordsInput = '';
 
-    }
+        // If player is leading, then add new words and increment zone index
+        if (await this.isPlayerLeading()) {
+            await this.updateLeaderStatus();
 
-
-    completed() {
-        this.add.text(512, 700, 'You have finished typing all the words!', {
-            fontFamily: 'Consolas', fontSize: '20px', color: '#ffffff',
-            stroke: '#000000', strokeThickness: 4,
-            align: 'center',
-            wordWrap: {width: 800, useAdvancedWrap: true }
-        }).setOrigin(0.5).setDepth(100);
-    }
-
-    // Check if player is in zone
-    async checkZoneStatus() {
-        if (this.gameStarted && !this.gameOver) {
-            // If player is leader, update leader status and zone
-            if (this.currentWordIndex > 0 && await this.isPlayerLeading()) {
-                this.updateLeaderStatus();
-            }
-            
-            // Check if current word is in zone
-            await this.checkIfInZone();
-            
-            // Update display
-            await this.updateZoneDisplay();
         }
+ 
+        await this.fetchGameStatus();
+    
+
+
     }
 
-    // Check if player is in zone
-    async checkIfInZone() {
-        if (this.currentWordIndex >= this.wordList.length) return;
-        
+
+    // Update game status in Redis database after each completed word
+    async updateGameStatus() {
         try {
-            const response = await axios.post("http://localhost:3000/checkzone", {
+            const response = await axios.post("http://localhost:3000/updategame", {
                 gameId: this.gameId,
-                currentWord: this.wordList[this.currentWordIndex]
+                hp: this.userHp,
+                currentLineIndex: this.currentLineIndex,
+    
             }, {
                 withCredentials: true
             });
-            
-            if (response.data.success) {
-                this.inZone = response.data.inZone;
-                
-                // Update health if in zone
-                if (this.inZone && response.data.newHp !== undefined) {
-                    this.playerHealth = response.data.newHp;
-                    this.healthText.setText(`Health: ${this.playerHealth}`);
-                    
-                    // Check if player died
-                    if (this.playerHealth <= 0) {
-                        this.playerDied();
-                    }
-                }
-            }
-        } catch (error) {
-            console.log("Error checking zone:", error);
+
         }
+        catch (error) {
+            console.log(error);
+        }
+        
+
     }
+
+
+    // completed() {
+    //     this.add.text(512, 700, 'You have finished typing all the words!', {
+    //         fontFamily: 'Consolas', fontSize: '20px', color: '#ffffff',
+    //         stroke: '#000000', strokeThickness: 4,
+    //         align: 'center',
+    //         wordWrap: {width: 800, useAdvancedWrap: true }
+    //     }).setOrigin(0.5).setDepth(100);
+    // }
+
+    // Check if player is in zone
+    // async checkZoneStatus() {
+    //     if (this.gameStarted && !this.gameOver) {
+    //         // If player is leader, update leader status and zone
+    //         if (this.currentWordIndex > 0 && await this.isPlayerLeading()) {
+    //             await this.updateLeaderStatus();
+    //         }
+            
+    //         // Check if current word is in zone
+    //         await this.checkIfInZone();
+            
+    //         // Update display
+    //         await this.updateZoneDisplay();
+    //     }
+    // }
+
+    // Check if player is in zone
+    // async checkIfInZone() {
+    //     if (this.currentWordIndex >= this.wordList.length) return;
+        
+    //     try {
+    //         const response = await axios.post("http://localhost:3000/checkzone", {
+    //             gameId: this.gameId,
+    //             currentWord: this.wordList[this.currentWordIndex]
+    //         }, {
+    //             withCredentials: true
+    //         });
+            
+    //         if (response.data.success) {
+    //             this.inZone = response.data.inZone;
+                
+    //             // Update health if in zone
+    //             if (this.inZone && response.data.newHp !== undefined) {
+    //                 this.playerHealth = response.data.newHp;
+    //                 this.healthText.setText(`Health: ${this.playerHealth}`);
+                    
+    //                 // Check if player died
+    //                 if (this.playerHealth <= 0) {
+    //                     this.playerDied();
+    //                 }
+    //             }
+    //         }
+    //     } catch (error) {
+    //         console.log("Error checking zone:", error);
+    //     }
+    // }
 
     // Update the zone display
-    async updateZoneDisplay() {
-        try {
-            // Fetch latest zone list
-            const response = await axios.post("http://localhost:3000/getzonelist", {
-                gameId: this.gameId
-            }, {
-                withCredentials: true
-            });
+    // async updateZoneDisplay() {
+    //     try {
+    //         // Fetch latest zone list
+    //         const response = await axios.post("http://localhost:3000/getzonelist", {
+    //             gameId: this.gameId
+    //         }, {
+    //             withCredentials: true
+    //         });
             
-            if (response.data.success) {
-                this.zoneList = response.data.zoneList;
+    //         if (response.data.success) {
+    //             this.zoneList = response.data.zoneList;
                 
-                // Update zone status text
-                if (this.inZone) {
-                    this.zoneText.setText('Zone: DANGER!');
-                    this.zoneText.setColor('#ff0000');
-                } else {
-                    this.zoneText.setText('Zone: Safe');
-                    this.zoneText.setColor('#00ff00');
-                }
+    //             // Update zone status text
+    //             if (this.inZone) {
+    //                 this.zoneText.setText('Zone: DANGER!');
+    //                 this.zoneText.setColor('#ff0000');
+    //             } else {
+    //                 this.zoneText.setText('Zone: Safe');
+    //                 this.zoneText.setColor('#00ff00');
+    //             }
                 
-                // Highlight words in zone
-                this.highlightZoneWords();
-            }
-        } catch (error) {
-            console.log("Error updating zone display:", error);
-        }
-    }
+    //             // Highlight words in zone
+    //             this.highlightZoneWords();
+    //         }
+    //     } catch (error) {
+    //         console.log("Error updating zone display:", error);
+    //     }
+    // }
 
-    highlightZoneWords() {
-        if (!this.wordList.length || !this.zoneList.length) return;
+    // highlightZoneWords() {
+    //     if (!this.wordList.length || !this.zoneList.length) return;
         
-        // Get the slice of wordList that the player can see (next 10 words)
-        const visibleWordCount = Math.min(10, this.wordList.length - this.currentWordIndex);
-        const visibleWords = this.wordList.slice(this.currentWordIndex, this.currentWordIndex + visibleWordCount);
+    //     // Get the slice of wordList that the player can see (next 10 words)
+    //     const visibleWordCount = Math.min(10, this.wordList.length - this.currentWordIndex);
+    //     const visibleWords = this.wordList.slice(this.currentWordIndex, this.currentWordIndex + visibleWordCount);
         
-        // Find out which words are in zone
-        const inZoneWords = visibleWords.filter(word => this.zoneList.includes(word));
+    //     // Find out which words are in zone
+    //     const inZoneWords = visibleWords.filter(word => this.zoneList.includes(word));
         
-        // If no words in zone, just display words normally
-        if (inZoneWords.length === 0) {
-            this.wordsText.setText(visibleWords.join(' '));
-            this.wordsText.setColor('#ffffff');
-            return;
-        }
+    //     // If no words in zone, just display words normally
+    //     if (inZoneWords.length === 0) {
+    //         this.wordsText.setText(visibleWords.join(' '));
+    //         this.wordsText.setColor('#ffffff');
+    //         return;
+    //     }
         
-        // Check if we have the last word in zone list in our visible words
-        const lastZoneWord = this.zoneList[this.zoneList.length - 1];
-        const lastZoneWordIndex = visibleWords.indexOf(lastZoneWord);
+    //     // Check if we have the last word in zone list in our visible words
+    //     const lastZoneWord = this.zoneList[this.zoneList.length - 1];
+    //     const lastZoneWordIndex = visibleWords.indexOf(lastZoneWord);
         
-        // The zone highlighting logic follows your requirements:
-        // 1. Check if last word in zone list exists in current display list
-        // 2. If not, check if last word in display list is in zone list
+    //     // The zone highlighting logic follows your requirements:
+    //     // 1. Check if last word in zone list exists in current display list
+    //     // 2. If not, check if last word in display list is in zone list
         
-        // If last zone word is visible, highlight from start to that index
-        if (lastZoneWordIndex !== -1) {
-            // Remove any existing colored word objects
-            if (this.zoneTextObjects && this.zoneTextObjects.length > 0) {
-                this.zoneTextObjects.forEach(obj => obj.destroy());
-            }
-            this.zoneTextObjects = [];
+    //     // If last zone word is visible, highlight from start to that index
+    //     if (lastZoneWordIndex !== -1) {
+    //         // Remove any existing colored word objects
+    //         if (this.zoneTextObjects && this.zoneTextObjects.length > 0) {
+    //             this.zoneTextObjects.forEach(obj => obj.destroy());
+    //         }
+    //         this.zoneTextObjects = [];
             
-            // Create two text objects - one for zone words, one for safe words
+    //         // Create two text objects - one for zone words, one for safe words
             
-            // 1. Create red zone words text (from start to lastZoneWordIndex)
-            const zoneWordsSlice = visibleWords.slice(0, lastZoneWordIndex + 1);
-            const zoneText = this.add.text(
-                512, 
-                200, 
-                zoneWordsSlice.join(' '), 
-                {
-                    fontFamily: 'Consolas',
-                    fontSize: '20px',
-                    color: '#ff0000',
-                    stroke: '#000000',
-                    strokeThickness: 4,
-                    align: 'right'
-                }
-            ).setOrigin(1, 0.5).setDepth(100);
+    //         // 1. Create red zone words text (from start to lastZoneWordIndex)
+    //         const zoneWordsSlice = visibleWords.slice(0, lastZoneWordIndex + 1);
+    //         const zoneText = this.add.text(
+    //             512, 
+    //             200, 
+    //             zoneWordsSlice.join(' '), 
+    //             {
+    //                 fontFamily: 'Consolas',
+    //                 fontSize: '20px',
+    //                 color: '#ff0000',
+    //                 stroke: '#000000',
+    //                 strokeThickness: 4,
+    //                 align: 'right'
+    //             }
+    //         ).setOrigin(1, 0.5).setDepth(100);
             
-            this.zoneTextObjects.push(zoneText);
+    //         this.zoneTextObjects.push(zoneText);
             
-            // 2. Create white safe words text (after lastZoneWordIndex)
-            if (lastZoneWordIndex < visibleWords.length - 1) {
-                const safeWordsSlice = visibleWords.slice(lastZoneWordIndex + 1);
-                const safeText = this.add.text(
-                    512, 
-                    200, 
-                    ' ' + safeWordsSlice.join(' '), 
-                    {
-                        fontFamily: 'Consolas',
-                        fontSize: '20px',
-                        color: '#ffffff',
-                        stroke: '#000000',
-                        strokeThickness: 4,
-                        align: 'left'
-                    }
-                ).setOrigin(0, 0.5).setDepth(100);
+    //         // 2. Create white safe words text (after lastZoneWordIndex)
+    //         if (lastZoneWordIndex < visibleWords.length - 1) {
+    //             const safeWordsSlice = visibleWords.slice(lastZoneWordIndex + 1);
+    //             const safeText = this.add.text(
+    //                 512, 
+    //                 200, 
+    //                 ' ' + safeWordsSlice.join(' '), 
+    //                 {
+    //                     fontFamily: 'Consolas',
+    //                     fontSize: '20px',
+    //                     color: '#ffffff',
+    //                     stroke: '#000000',
+    //                     strokeThickness: 4,
+    //                     align: 'left'
+    //                 }
+    //             ).setOrigin(0, 0.5).setDepth(100);
                 
-                this.zoneTextObjects.push(safeText);
-            }
+    //             this.zoneTextObjects.push(safeText);
+    //         }
             
-            // Hide the original text
-            this.wordsText.setVisible(false);
-        }
-        // Check if the last word in display list is in zone list
-        else if (this.zoneList.includes(visibleWords[visibleWords.length - 1])) {
-            // All visible words are in zone
-            this.wordsText.setVisible(true);
-            this.wordsText.setText(visibleWords.join(' '));
-            this.wordsText.setColor('#ff0000');
+    //         // Hide the original text
+    //         this.wordsText.setVisible(false);
+    //     }
+    //     // Check if the last word in display list is in zone list
+    //     else if (this.zoneList.includes(visibleWords[visibleWords.length - 1])) {
+    //         // All visible words are in zone
+    //         this.wordsText.setVisible(true);
+    //         this.wordsText.setText(visibleWords.join(' '));
+    //         this.wordsText.setColor('#ff0000');
             
-            // Clear any text objects
-            if (this.zoneTextObjects && this.zoneTextObjects.length > 0) {
-                this.zoneTextObjects.forEach(obj => obj.destroy());
-                this.zoneTextObjects = [];
-            }
-        }
-        // If none of the above, player's display list is not in zone
-        else {
-            this.wordsText.setVisible(true);
-            this.wordsText.setText(visibleWords.join(' '));
-            this.wordsText.setColor('#ffffff');
+    //         // Clear any text objects
+    //         if (this.zoneTextObjects && this.zoneTextObjects.length > 0) {
+    //             this.zoneTextObjects.forEach(obj => obj.destroy());
+    //             this.zoneTextObjects = [];
+    //         }
+    //     }
+    //     // If none of the above, player's display list is not in zone
+    //     else {
+    //         this.wordsText.setVisible(true);
+    //         this.wordsText.setText(visibleWords.join(' '));
+    //         this.wordsText.setColor('#ffffff');
             
-            // Clear any text objects
-            if (this.zoneTextObjects && this.zoneTextObjects.length > 0) {
-                this.zoneTextObjects.forEach(obj => obj.destroy());
-                this.zoneTextObjects = [];
-            }
-        }
-    }
+    //         // Clear any text objects
+    //         if (this.zoneTextObjects && this.zoneTextObjects.length > 0) {
+    //             this.zoneTextObjects.forEach(obj => obj.destroy());
+    //             this.zoneTextObjects = [];
+    //         }
+    //     }
+    // }
 
     // Check if player is leading
     async isPlayerLeading() {
-        if (!this.playerScores) return false;
+        if (!this.playerWordLines) return false;
 
         // Fetch current user
         try {
-            const response = await axios.get("http://localhost:5000/user", {
+            const response = await axios.get("http://localhost:3000/user", {
                 withCredentials: true
             })
             const currentUser = response.data.user;
@@ -543,7 +642,7 @@ export class Game extends Scene
             let leadPlayer = null;
             
             // Find player with highest score
-            for (const [player, score] of Object.entries(this.playerScores)) {
+            for (const [player, score] of Object.entries(this.playerWordLines)) {
                 if (score > maxScore) {
                     maxScore = score;
                     leadPlayer = player;
@@ -560,29 +659,43 @@ export class Game extends Scene
         
     }
 
-    // Update leader status and zone position
+    // Update leader status and zone position (only called by leader)
     async updateLeaderStatus() {
         try {
+            // Generate 10 new words randomly
+            const newWords = this.wordBank.sort(() => 0.5 - Math.random()).slice(0, 10);
+
+
             const response = await axios.post("http://localhost:3000/updateleader", {
                 gameId: this.gameId,
-                wordCount: this.currentWordIndex
+                currentLineIndex: this.currentLineIndex,
+                newWords: newWords
             }, {
                 withCredentials: true
             });
             
             if (response.data.success) {
-                this.isLeader = response.data.isLeader;
+                // Only the leader calls this function
+                this.leaderText.setText('LEADER');
+                this.leaderText.setColor('#ffff00');
+
+                this.getLeaderKills();
+
+
+
+
+                // this.isLeader = response.data.isLeader;
                 
-                // Update leader text
-                if (this.isLeader) {
-                    this.leaderText.setText('LEADER');
-                    this.leaderText.setColor('#ffff00');
+                // // Update leader text
+                // if (this.isLeader) {
+                //     this.leaderText.setText('LEADER');
+                //     this.leaderText.setColor('#ffff00');
                     
-                    // Get kill count
-                    this.getLeaderKills();
-                } else {
-                    this.leaderText.setText('');
-                }
+                //     // Get kill count
+                //     this.getLeaderKills();
+                // } else {
+                //     this.leaderText.setText('');
+                // }
             }
         } catch (error) {
             console.log("Error updating leader status:", error);
