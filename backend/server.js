@@ -485,7 +485,7 @@ app.post('/updategame', async (req, res) => {
     const user = req.session.user;
 
     // Set new currentLineIndex for this player, in case it's updated
-    await client.zAdd(`game:${gameId}:wordLines`, currentLineIndex);
+    await client.zAdd(`game:${gameId}:wordLines`, [{score: currentLineIndex, value: user}]);
 
     // Check if player is in zone
     const lineIndex = await client.zScore(`game:${gameId}:wordLines`, user);
