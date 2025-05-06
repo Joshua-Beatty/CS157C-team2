@@ -102,9 +102,10 @@ app.post('/login', async (req, res) => {
 });
 
 
+
 // Register endpoint
 app.post('/register', async (req, res) => {
-    const { username, password } = req.body;
+    const { username, password, displayName, email } = req.body;
 
     // Check for any blank fields
     if (!username) {
@@ -115,6 +116,14 @@ app.post('/register', async (req, res) => {
         console.log("Missing password");
         return res.json({ success: false, message: "Missing password"});
     }
+    else if (!displayName) {
+        console.log("Missing display name");
+        return res.json({ success: false, message: "Missing display name"});
+    }
+    else if (!email) {
+        console.log("Missing email");
+        return res.json({ success: false, message: "Missing email"});
+    }
 
     // Check if username already exists in Redis database
     const existingUser = await client.get(`user:${username}`);
@@ -123,11 +132,21 @@ app.post('/register', async (req, res) => {
         return res.json({ success: false, message: "Username already exists"});
     }
 
+    // Check if email already exists in Redis database
+    const existingEmail = await client.get(`email:${email}`);
+    if (existingEmail) {
+        console.log(`Email ${email} already registered in Redis database`);
+        return res.json({ success: false, message: "Email already registered"});
+    }
+
     // Create new account in Redis database
     await client.set(`user:${username}`, password);
-    console.log(`New user created with username=${username} and password=${password} in Redis database`)
+    await client.set(`user:${username}:displayName`, displayName);
+    await client.set(`user:${username}:email`, email);
+    await client.set(`email:${email}`, username); // For email uniqueness check
+    
+    console.log(`New user created with username=${username}, displayName=${displayName}, email=${email} in Redis database`)
     res.json({ success: true, message: "Registration successful. Redirecting to login..."})
-
 });
 
 
@@ -137,6 +156,160 @@ app.get('/profile', requireLogin, (req, res) => {
     // Send welcome message when user logs in
     res.json({ success: true, message: `Welcome, ${req.session.user}`});
 
+});
+
+// Get user profile endpoint
+app.get('/userprofile', requireLogin, async (req, res) => {
+    const username = req.session.user;
+    
+    try {
+        // Get user information from Redis
+        const displayName = await client.get(`user:${username}:displayName`) || username;
+        const email = await client.get(`user:${username}:email`) || '';
+        
+        return res.json({ 
+            success: true, 
+            username: username,
+            displayName: displayName,
+            email: email
+        });
+    } catch (error) {
+        console.error('Error fetching user profile:', error);
+        return res.json({ success: false, message: "Error fetching user profile" });
+    }
+});
+
+// Update display name endpoint
+app.post('/updatedisplayname', requireLogin, async (req, res) => {
+    const username = req.session.user;
+    const { displayName } = req.body;
+    
+    if (!displayName) {
+        return res.json({ success: false, message: "Display name cannot be empty" });
+    }
+    
+    try {
+        await client.set(`user:${username}:displayName`, displayName);
+        console.log(`Updated display name for ${username} to ${displayName}`);
+        return res.json({ success: true, message: "Display name updated successfully" });
+    } catch (error) {
+        console.error('Error updating display name:', error);
+        return res.json({ success: false, message: "Error updating display name" });
+    }
+});
+
+// Update email endpoint
+app.post('/updateemail', requireLogin, async (req, res) => {
+    const username = req.session.user;
+    const { email } = req.body;
+    
+    if (!email) {
+        return res.json({ success: false, message: "Email cannot be empty" });
+    }
+    
+    try {
+        // Check if new email is already registered to another user
+        const existingEmail = await client.get(`email:${email}`);
+        if (existingEmail && existingEmail !== username) {
+            return res.json({ success: false, message: "Email already registered to another account" });
+        }
+        
+        // Get old email to remove from Redis
+        const oldEmail = await client.get(`user:${username}:email`);
+        if (oldEmail) {
+            await client.del(`email:${oldEmail}`);
+        }
+        
+        // Set new email
+        await client.set(`user:${username}:email`, email);
+        await client.set(`email:${email}`, username);
+        
+        console.log(`Updated email for ${username} to ${email}`);
+        return res.json({ success: true, message: "Email updated successfully" });
+    } catch (error) {
+        console.error('Error updating email:', error);
+        return res.json({ success: false, message: "Error updating email" });
+    }
+});
+
+// Update password endpoint
+app.post('/updatepassword', requireLogin, async (req, res) => {
+    const username = req.session.user;
+    const { currentPassword, newPassword } = req.body;
+    
+    if (!currentPassword || !newPassword) {
+        return res.json({ success: false, message: "Current and new password are required" });
+    }
+    
+    try {
+        // Verify current password
+        const storedPassword = await client.get(`user:${username}`);
+        if (storedPassword !== currentPassword) {
+            return res.json({ success: false, message: "Current password is incorrect" });
+        }
+        
+        // Update password
+        await client.set(`user:${username}`, newPassword);
+        console.log(`Updated password for ${username}`);
+        return res.json({ success: true, message: "Password updated successfully" });
+    } catch (error) {
+        console.error('Error updating password:', error);
+        return res.json({ success: false, message: "Error updating password" });
+    }
+});
+
+// Update all profile fields endpoint
+app.post('/updateprofile', requireLogin, async (req, res) => {
+    const username = req.session.user;
+    const { displayName, email, currentPassword, newPassword } = req.body;
+    
+    try {
+        // Update display name if provided
+        if (displayName) {
+            await client.set(`user:${username}:displayName`, displayName);
+        }
+        
+        // Update email if provided
+        if (email) {
+            const oldEmail = await client.get(`user:${username}:email`);
+            
+            // Check if new email is different from current one
+            if (oldEmail !== email) {
+                // Check if new email is already registered to another user
+                const existingEmail = await client.get(`email:${email}`);
+                if (existingEmail && existingEmail !== username) {
+                    return res.json({ success: false, message: "Email already registered to another account" });
+                }
+                
+                // Remove old email mapping
+                if (oldEmail) {
+                    await client.del(`email:${oldEmail}`);
+                }
+                
+                // Set new email
+                await client.set(`user:${username}:email`, email);
+                await client.set(`email:${email}`, username);
+            }
+        }
+        
+        // Update password if both current and new are provided
+        if (currentPassword && newPassword) {
+            // Verify current password
+            const storedPassword = await client.get(`user:${username}`);
+            if (storedPassword !== currentPassword) {
+                return res.json({ success: false, message: "Current password is incorrect" });
+            }
+            
+            // Update password
+            await client.set(`user:${username}`, newPassword);
+        }
+        
+        console.log(`Updated profile for ${username}`);
+        return res.json({ success: true, message: "Profile updated successfully" });
+    } catch (error) {
+        console.error('Error updating profile:', error);
+        return res.json({ success: false, message: "Error updating profile" });
+    }
 });
 
 

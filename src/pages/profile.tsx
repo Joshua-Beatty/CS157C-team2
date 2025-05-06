@@ -8,6 +8,9 @@ function Profile() {
     const [message, setMessage] = useState('');
     const [isLoggedIn, setIsLoggedIn] = useState(false);
     const [isSuccess, setIsSuccess] = useState(true);
+    const [username, setUsername] = useState('');
+    const [displayName, setDisplayName] = useState('');
+    const [email, setEmail] = useState('');
 
     // Upon loading profile, check if user is logged in
     useEffect(() => {
@@ -17,6 +20,8 @@ function Profile() {
                 setMessage(response.data.message);
                 if (response.data.success) {
                     setIsLoggedIn(true);
+                    // Now fetch user profile details
+                    fetchUserProfile();
                 }
                 else {
                     // Not logged in, so redirect to home
@@ -38,6 +43,20 @@ function Profile() {
         fetchProfile();
     }, [router]);
 
+    // Fetch user profile details
+    const fetchUserProfile = async () => {
+        try {
+            const response = await axios.get('http://localhost:3000/userprofile', { withCredentials: true });
+            if (response.data.success) {
+                setUsername(response.data.username);
+                setDisplayName(response.data.displayName);
+                setEmail(response.data.email);
+            }
+        } catch (error) {
+            console.error('Error fetching user profile:', error);
+        }
+    };
+
     // User logs out
     const handleLogout = async () => {
         try {
@@ -52,6 +71,11 @@ function Profile() {
         catch (error) {
             setMessage('Failed to log out');
         }
+    };
+
+    // Navigate to edit profile page
+    const handleEditProfile = () => {
+        router.push('/edit-profile');
     };
 
     // Tetris piece icons
@@ -94,11 +118,37 @@ function Profile() {
             <h1>PLAYER PROFILE</h1>
             
             <div className={`message ${isSuccess ? 'success-message' : 'error-message'}`}>
-                {message}
+                <h2>{message}</h2>
             </div>
 
             {isLoggedIn && (
                 <div className="profile-content">
+                    <div className="user-info" style={{ 
+                        marginTop: '30px',
+                        padding: '15px',
+                        border: '2px solid var(--tetris-t)',
+                        backgroundColor: 'rgba(0, 0, 0, 0.5)'
+                    }}>
+                        <h2>PLAYER INFO</h2>
+                        <div style={{ textAlign: 'left', marginTop: '20px' }}>
+                            <p><TetrisPiece type="t" /> Display Name: {displayName}</p>
+                            <p><TetrisPiece type="i" /> Username: {username}</p>
+                            <p><TetrisPiece type="j" /> Email: {email}</p>
+                        </div>
+                        <button 
+                            onClick={handleEditProfile}
+                            className="button"
+                            style={{ 
+                                borderColor: 'var(--tetris-t)',
+                                width: '150px',
+                                fontSize: '0.8em',
+                                marginTop: '15px'
+                            }}
+                        >
+                            EDIT PROFILE
+                        </button>
+                    </div>
+
                     <div className="stats-container" style={{ 
                         marginTop: '30px',
                         padding: '15px',

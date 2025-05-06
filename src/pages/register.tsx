@@ -7,6 +7,8 @@ function Register() {
     const router = useRouter();
 
     const [username, setUsername] = useState('');
+    const [displayName, setDisplayName] = useState('');
+    const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [message, setMessage] = useState('');
     const [isSuccess, setIsSuccess] = useState(false);
@@ -15,7 +17,9 @@ function Register() {
         try {
             const response = await axios.post('http://localhost:3000/register', {
                 username,
-                password
+                password,
+                displayName,
+                email
             }, {
                 withCredentials: true // credentials for session
             });
@@ -59,6 +63,24 @@ function Register() {
                     placeholder="Username"
                     value={username}
                     onChange={(e) => setUsername(e.target.value)}
+                />
+            </div>
+            
+            <div className="input-group">
+                <input
+                    type="text"
+                    placeholder="Display Name"
+                    value={displayName}
+                    onChange={(e) => setDisplayName(e.target.value)}
+                />
+            </div>
+            
+            <div className="input-group">
+                <input
+                    type="email"
+                    placeholder="Email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
                 />
             </div>
             
