@@ -195,7 +195,7 @@ export class Game extends Scene {
         }).setDepth(100);
         
         // Create zone status display
-        this.zoneText = this.add.text(100, 90, 'Zone: Safe', {
+        this.zoneText = this.add.text(100, 130, 'Zone: Safe', {
             fontFamily: '"Press Start 2P"', 
             fontSize: '16px', 
             color: '#00ff00',
@@ -204,7 +204,7 @@ export class Game extends Scene {
         }).setDepth(100);
 
         // Create top 10 players display
-        this.topTenText = this.add.text(100, 70, 'Current Top 10', {
+        this.topTenText = this.add.text(100, 90, 'Current Top 10', {
             fontFamily: '"Press Start 2P"', 
             fontSize: '16px', 
             color: '#00ff00',
@@ -213,7 +213,7 @@ export class Game extends Scene {
         }).setDepth(100);
         
         // Create kills display
-        this.killsText = this.add.text(900, 50, 'Kills: 0', {
+        this.killsText = this.add.text(800, 50, 'Kills: 0', {
             fontFamily: '"Press Start 2P"', 
             fontSize: '16px', 
             color: '#ffffff',
@@ -222,7 +222,7 @@ export class Game extends Scene {
         }).setDepth(100);
         
         // Create leader status
-        this.leaderText = this.add.text(900, 80, '', {
+        this.leaderText = this.add.text(800, 80, '', {
             fontFamily: '"Press Start 2P"', 
             fontSize: '16px', 
             color: '#ffff00',
