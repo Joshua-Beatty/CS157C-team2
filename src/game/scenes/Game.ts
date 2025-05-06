@@ -186,7 +186,7 @@ export class Game extends Scene
                 });
     
                 // Check if this current user == last readied user
-                if (userResponse.data.userId == lastReadyUser) {
+                if (userResponse.data.user == lastReadyUser) {
     
                     // Last readied user will generate first 10 words randomly using this.wordBank
                     this.wordList = this.wordBank.sort(() => 0.5 - Math.random()).slice(0, 10);
@@ -213,6 +213,7 @@ export class Game extends Scene
                 // Not readied user
                 else {
                     // Wait for game data to appear in database
+                    console.log("now i am here now!")
                     await this.waitGameStartWhile();
     
     
@@ -326,16 +327,6 @@ export class Game extends Scene
             if (this.died) {
                 this.playerDied();
             }
-
-
-
-
-
-
-
-
-
-
             // Update display after everything is fetched
             // await this.updatePersonalDisplay();
             
