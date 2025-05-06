@@ -247,16 +247,6 @@ export class Game extends Scene
     // Called per loop of waitGameStartWhile()
     async waitGameStart() {
         try {
-            // First, make sure we have the correct game ID
-            const gameIdResponse = await axios.get("http://localhost:3000/getgameid", {
-                withCredentials: true
-            });
-
-            if (gameIdResponse.data.success) {
-                // Update our game ID to ensure consistency
-                this.gameId = gameIdResponse.data.gameId;
-            }
-
             // Check if game is ready in Redis database, pass gameId to backend
             const response = await axios.post("http://localhost:3000/checkgameready", {
                 gameId: this.gameId
@@ -414,6 +404,8 @@ export class Game extends Scene
         this.currentWordIndex = 0;
         // Clear input words
         this.wordsInput = '';
+
+        await this.updateGameStatus();
 
         // If player is leading, then add new words and increment zone index
         if (await this.isPlayerLeading()) {
