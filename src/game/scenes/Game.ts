@@ -191,24 +191,24 @@ export class Game extends Scene
                     // Last readied user will generate first 10 words randomly using this.wordBank
                     this.wordList = this.wordBank.sort(() => 0.5 - Math.random()).slice(0, 10);
 
-    
-                    // Call startgame endpoint with created wordList
-                    const gameResponse = await axios.post("http://localhost:3000/startgame", {
-                        gameId: this.gameId,
-                        wordList: this.wordList
-                    }, {
-                        withCredentials: true
-                    });
-    
-                    if (gameResponse.data.success) {
-                        // Last readied user's game starts
-                        this.gameStarted = true;
-                        // Enter fetchGameStatus loop
-                        await this.fetchGameStatusWhile();
+                    try {
+                        const gameResponse = await axios.post("http://localhost:3000/startgame", {
+                            gameId: this.gameId,
+                            wordList: this.wordList
+                        }, {
+                            withCredentials: true
+                        });
+                        
+                        if (gameResponse.data.success) {
+                            this.gameStarted = true;
+                            await this.fetchGameStatusWhile();
+                        } else {
+                            console.log("Failed to start game:", gameResponse.data.message);
+                            // Maybe implement a retry mechanism or fallback
+                        }
+                    } catch (error) {
+                        console.error("Error starting game:", error);
                     }
-    
-    
-    
                 }
                 // Not readied user
                 else {

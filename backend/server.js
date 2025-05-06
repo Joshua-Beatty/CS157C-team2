@@ -439,7 +439,14 @@ app.get('/user', (req, res) => {
 app.post('/startgame', async (req, res) => {
     // Get gameId and wordList from last readied player
     const { gameId, wordList } = req.body;
+    const user = req.session.user;
 
+    // IMPORTANT: Check if this user is actually the last one who readied up
+    const lastReadyUser = await client.get(`queue:${gameId}:lastReady`);
+    if (user !== lastReadyUser) {
+        console.log(`User ${user} is not the last ready user (${lastReadyUser}), rejecting game creation`);
+        return res.json({ success: false, message: "Unauthorized - you are not the last ready user" });
+    }
 
     // CHECK IF GAME ALREADY EXISTS to prevent duplicate creation
     const gameExists = await client.exists(`game:${gameId}:wordList`);
@@ -447,6 +454,8 @@ app.post('/startgame', async (req, res) => {
         console.log(`Game ${gameId} already exists, skipping creation.`);
         return res.json({ success: true });
     }
+
+    console.log(`Authorized user ${user} creating game ${gameId}`);
 
     // Set game:<gameId>:ready to 1 after creating game, for other users to join game
     await client.set(`game:${gameId}:ready`, 1);
