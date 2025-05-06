@@ -440,6 +440,9 @@ app.post('/startgame', async (req, res) => {
     // Get gameId and wordList from last readied player
     const { gameId, wordList } = req.body;
 
+    console.log(`Creating game ${gameId} with ${players.length} players`);
+    console.log(`Adding ${wordList.length} words to game ${gameId}`);
+
     // CHECK IF GAME ALREADY EXISTS to prevent duplicate creation
     const gameExists = await client.exists(`game:${gameId}:wordList`);
     if (gameExists) {
@@ -477,6 +480,8 @@ app.post('/startgame', async (req, res) => {
 
     // Increment queue:counter
     await client.incr("queue:counter");
+
+    console.log(`Game ${gameId} created successfully, queue counter incremented`);
     
     return res.json({success: true});
 
