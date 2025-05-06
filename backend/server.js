@@ -457,6 +457,9 @@ app.post('/startgame', async (req, res) => {
     for (let i = 0; i < wordList.length; i++ ) {
         await client.rPush(`game:${gameId}:wordList`, wordList[i]);
     }
+
+    // Set zoneIndex to 0
+    await client.set(`game:${gameId}:zoneIndex`, -2);
     
 
     // Set game:<gameId>:ready to 1 after creating game, for other users to join game
