@@ -441,6 +441,16 @@ export class Game extends Scene {
                 this.gameOver = true;
                 return;
             }
+
+            if (response.data.gameEnded) {
+                this.gameOver = true;
+                
+                if (response.data.isWinner) {
+                    this.playerWin();
+                }
+                
+                return; // Exit the method early since game is over
+            }
     
             // Update fields
             this.playerHps = response.data.playerHps;
@@ -703,6 +713,28 @@ export class Game extends Scene {
         // Pulse the game over text
         this.tweens.add({
             targets: gameOverText,
+            scale: 1.2,
+            duration: 500,
+            yoyo: true,
+            repeat: -1
+        });
+    }
+
+    playerWin() {
+        const victoryText = this.add.text(512, 384, 'VICTORY ROYALE!', {
+            fontFamily: '"Press Start 2P"', 
+            fontSize: '32px', 
+            color: '#ffff00',
+            stroke: '#000000', 
+            strokeThickness: 8,
+            align: 'center'
+        }).setOrigin(0.5).setDepth(100);
+        
+        // Add effects, animation, etc.
+        this.cameras.main.flash(1000, 255, 255, 0);
+        
+        this.tweens.add({
+            targets: victoryText,
             scale: 1.2,
             duration: 500,
             yoyo: true,

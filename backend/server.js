@@ -666,6 +666,27 @@ app.post('/fetchgame', async (req, res) => {
         died = true;
     }
 
+    // Check if game should end (only one player alive)
+    const alivePlayers = await client.zCount(`game:${gameId}:hps`, 1, '+inf');
+    const gameEnded = alivePlayers <= 1;
+
+    if (gameEnded) {
+        // Get the winner (last player standing)
+        const winner = await r.zrangebyscore(`game:${gameId}:hps`, 1, '+inf', 'LIMIT', 0, 1);
+        const isWinner = winner[0] === user;
+        
+        console.log(`Game ${gameId} has ended. Winner: ${winner[0]}`);
+        
+        return res.json({ 
+            success: true,
+            gameOver: true,
+            winner: winner[0],
+            isWinner: isWinner,
+            success: true, playerHps: playerHps, playerWordLines: playerWordLines, 
+            wordList: wordList, hp: hp, inZone: inZone, died: died, leader: leader[0], isLeader: isLeader
+        });
+    }
+
     //console.log("word list:" + wordList)
     return res.json({ success: true, playerHps: playerHps, playerWordLines: playerWordLines, 
         wordList: wordList, hp: hp, inZone: inZone, died: died, leader: leader[0], isLeader: isLeader });
