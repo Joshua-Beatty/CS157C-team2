@@ -149,6 +149,10 @@ function GameController() {
     const currentScene = (scene: Phaser.Scene) => {
         // Update inGame state based on the current scene
         setInGame(scene.scene.key === 'Game');
+
+        if (inGame) {
+            setStatusMessage('GLHF!');
+        }
         
         // Add this line to track when scene is ready
         setSceneReady(true);
