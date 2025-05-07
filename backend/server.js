@@ -2,6 +2,7 @@
 
 // Imports
 const redis = require('redis');
+const ioredis = require('ioredis');
 const cors = require('cors');
 const express = require('express');
 const session = require('express-session');
@@ -33,6 +34,12 @@ const client = redis.createClient({
         host: '34.173.23.63',
         port: 6379
     },
+    password: '5Xr9!fH2s@Dp7t$kQb8yP0zLwE#Vg3zR'
+});
+
+const r = new ioredis({
+    host: '34.173.23.63',
+    port: 6379,
     password: '5Xr9!fH2s@Dp7t$kQb8yP0zLwE#Vg3zR'
 });
 
@@ -624,7 +631,6 @@ app.post('/fetchgame', async (req, res) => {
     
     
     // Do the same transformation for player HPs
-    const rawPlayerHps = await client.zRange(`game:${gameId}:hps`, 0, -1, {WITHSCORES: true});
     const playerHps = {};
     if (Object.keys(playerHps).length === 0 || playerHps[user] === undefined) {
         // Direct score check if the first approach fails
@@ -637,6 +643,8 @@ app.post('/fetchgame', async (req, res) => {
             playerHps[user] = 0;
         }
     }
+    const leader = await r.zrevrange(`game:${gameId}:wordLines`, 0, 0);
+    const isLeader = leader[0] === user;
 
     // Get word list
     const wordList = await client.lRange(`game:${gameId}:wordList`, 0, -1);
@@ -656,7 +664,7 @@ app.post('/fetchgame', async (req, res) => {
 
     //console.log("word list:" + wordList)
     return res.json({ success: true, playerHps: playerHps, playerWordLines: playerWordLines, 
-        wordList: wordList, hp: hp, inZone: inZone, died: died });
+        wordList: wordList, hp: hp, inZone: inZone, died: died, leader: leader[0], isLeader: isLeader });
 
 })
 
@@ -719,6 +727,10 @@ app.post('/fetchgame', async (req, res) => {
 app.post('/updateleader', async (req, res) => {
     const { gameId, currentLineIndex, newWords, leader } = req.body;
 
+    // Before adding new words, check current count
+    const currentWordCount = await client.lLen(`game:${gameId}:wordList`);
+    console.log(`Current word count in Redis: ${currentWordCount}`);
+
     // Set new leader
     await client.set(`game:${gameId}:leader`, leader);
     // Set new zone index
@@ -726,8 +738,18 @@ app.post('/updateleader', async (req, res) => {
     await client.set(`game:${gameId}:zoneIndex`, zoneIndex);
 
     // Update wordList with new words
-    for (let i = 0; i < newWords.length; i++) {
-        await client.rPush(`game:${gameId}:wordList`, newWords[i]);
+    try {
+        for (let i = 0; i < newWords.length; i++) {
+            await client.rPush(`game:${gameId}:wordList`, newWords[i]);
+        }
+        console.log(`Successfully added ${newWords.length} words to game ${gameId}`);
+        const newWordCount = await client.lLen(`game:${gameId}:wordList`);
+        console.log(`New word count in Redis: ${newWordCount}`);
+        const leader = await r.zrevrange(`game:${gameId}:wordLines`, 0, 0);
+        console.log(leader[0])
+    } catch (error) {
+        console.error(`Error adding words to Redis: ${error}`);
+        return res.json({ success: false, message: "Error adding words" });
     }
 
 });
@@ -838,7 +860,7 @@ app.post('/leavegame', async (req, res) => {
         // 5. Check if this was the leader who left
         if (user === leader) {
             // Find new leader (player with highest word line score)
-            const players = await client.zRevRange(`game:${gameId}:wordLines`, 0, 0);
+            const players = await r.zrevrange(`game:${gameId}:wordLines`, 0, 0);
             if (players.length > 0) {
                 const newLeader = players[0];
                 await client.set(`game:${gameId}:leader`, newLeader);

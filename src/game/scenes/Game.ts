@@ -446,6 +446,7 @@ export class Game extends Scene {
             this.playerHps = response.data.playerHps;
             this.playerWordLines = response.data.playerWordLines;
             this.wordList = response.data.wordList;
+            this.isLeader = response.data.isLeader;
             // Update wordLine using currentLineIndex
             this.wordLine = this.wordList.slice(this.currentLineIndex*10, this.currentLineIndex*10+10);
             this.playerHealth = response.data.hp;
@@ -551,7 +552,8 @@ export class Game extends Scene {
         await this.fetchGameStatus();
 
         // If player is leading, then add new words and increment zone index
-        if (await this.isPlayerLeading()) {
+        if (this.isLeader) {
+            console.log(`I AM THE LEADER - generating new words at line ${this.currentLineIndex}`);
             await this.updateLeaderStatus();
         }
 
