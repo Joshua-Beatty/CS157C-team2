@@ -571,6 +571,7 @@ export class Game extends Scene {
             }, {
                 withCredentials: true
             });
+            this.userHp = response.data.playerHp;
         }
         catch (error) {
             console.log(error);

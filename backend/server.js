@@ -550,6 +550,8 @@ app.get('/getgameid', async (req, res) => {
 app.post('/updategame', async (req, res) => {
     const { gameId, hp, currentLineIndex, user } = req.body;
 
+    let playerHp = hp;
+
     const lineIndexNumber = parseInt(currentLineIndex) || 0;
 
     // Set new currentLineIndex for this player, in case it's updated
@@ -562,6 +564,8 @@ app.post('/updategame', async (req, res) => {
         // Subtract from user HP
         const newHp = hp - 1;
         await client.zAdd(`game:${gameId}:hps`, [{score: newHp, value: user}]);
+        playerHp = await client.zScore(`game:${gameId}:hps`, user);
+        console.log(playerHp)
 
         // If player died (HP is 0)
         if (newHp == 0) {
@@ -577,7 +581,7 @@ app.post('/updategame', async (req, res) => {
         }
     }
 
-    return res.json({ success: true });
+    return res.json({ success: true, playerHp: playerHp });
 
 })
 
