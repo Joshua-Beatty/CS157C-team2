@@ -150,10 +150,6 @@ function GameController() {
         // Update inGame state based on the current scene
         setInGame(scene.scene.key === 'Game');
 
-        if (inGame) {
-            setStatusMessage('GLHF!');
-        }
-        
         // Add this line to track when scene is ready
         setSceneReady(true);
     }
@@ -175,6 +171,12 @@ function GameController() {
         
         return () => clearInterval(interval);
     }, []);
+
+    useEffect(() => {
+        if (inGame) {
+            setStatusMessage('GLHF!');
+        }
+    }, [inGame]);
 
     
 
