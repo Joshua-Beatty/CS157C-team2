@@ -680,6 +680,7 @@ app.post('/fetchgame', async (req, res) => {
     const alivePlayers = await client.zCount(`game:${gameId}:hps`, 1, '+inf');
     const gameEnded = alivePlayers <= 1;
 
+    // Only 1 alive player
     if (gameEnded) {
         // Get the winner (last player standing)
         const winner = await r.zrangebyscore(`game:${gameId}:hps`, 1, '+inf', 'LIMIT', 0, 1);

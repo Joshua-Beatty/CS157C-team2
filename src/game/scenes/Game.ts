@@ -451,14 +451,15 @@ export class Game extends Scene {
                 return;
             }
 
-            if (response.data.gameEnded) {
+            // Check if game is ended (only 1 player alive)
+            if (response.data.gameOver) {
                 this.gameOver = true;
                 
-                if (response.data.isWinner) {
+                if (response.data.isWinner && this.scene.isActive()) {
                     this.playerWin();
+                    return; // Exit the method early since game is over
                 }
                 
-                return; // Exit the method early since game is over
             }
     
             // Update fields
@@ -468,15 +469,12 @@ export class Game extends Scene {
             this.isLeader = response.data.isLeader;
             // Update wordLine using currentLineIndex
             this.wordLine = this.wordList.slice(this.currentLineIndex*10, this.currentLineIndex*10+10);
-            //this.playerHealth = response.data.hp;
+            this.userHp = response.data.hp;
 
             this.inZone = response.data.inZone;
             this.died = response.data.died;
             
             // Update display
-            this.wordsText.setText(this.wordLine.join(' '));
-            this.healthText.setText(`Health: ${this.userHp}`);
-
             if (this.wordsText && this.wordsText.scene) {
                 this.wordsText.setText(this.wordLine.join(' '));
             }
