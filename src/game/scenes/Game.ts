@@ -457,9 +457,9 @@ export class Game extends Scene {
                 
                 if (response.data.isWinner && this.scene.isActive()) {
                     this.playerWin();
+                    return; // Exit the method early since game is over
                 }
                 
-                return; // Exit the method early since game is over
             }
     
             // Update fields
