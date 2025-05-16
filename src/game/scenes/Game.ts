@@ -469,15 +469,12 @@ export class Game extends Scene {
             this.isLeader = response.data.isLeader;
             // Update wordLine using currentLineIndex
             this.wordLine = this.wordList.slice(this.currentLineIndex*10, this.currentLineIndex*10+10);
-            //this.playerHealth = response.data.hp;
+            this.userHp = response.data.hp;
 
             this.inZone = response.data.inZone;
             this.died = response.data.died;
             
             // Update display
-            this.wordsText.setText(this.wordLine.join(' '));
-            this.healthText.setText(`Health: ${this.userHp}`);
-
             if (this.wordsText && this.wordsText.scene) {
                 this.wordsText.setText(this.wordLine.join(' '));
             }
