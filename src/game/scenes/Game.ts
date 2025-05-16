@@ -26,6 +26,7 @@ export class Game extends Scene {
 
     // Keep track of this game's ID
     static currentGameId: string | null = null;
+    static lastReadyUser: string | null = null;
 
     // Keep track of if game started (wait for last readied player to create game)
     gameStarted: boolean = false;
@@ -42,17 +43,17 @@ export class Game extends Scene {
     leaderText: Phaser.GameObjects.Text;
 
     // Top 10 list of players
-    topTenText: Phaser.GameObjects.Text;
-    firstPlayer: Phaser.GameObjects.Text;
-    secondPlayer: Phaser.GameObjects.Text;
-    thirdPlayer: Phaser.GameObjects.Text;
-    fourthPlayer: Phaser.GameObjects.Text;
-    fifthPlayer: Phaser.GameObjects.Text;
-    sixthPlayer: Phaser.GameObjects.Text;
-    seventhPlayer: Phaser.GameObjects.Text;
-    eighthPlayer: Phaser.GameObjects.Text;
-    ninthPlayer: Phaser.GameObjects.Text;
-    tenthPlayer: Phaser.GameObjects.Text;
+    // topTenText: Phaser.GameObjects.Text;
+    // firstPlayer: Phaser.GameObjects.Text;
+    // secondPlayer: Phaser.GameObjects.Text;
+    // thirdPlayer: Phaser.GameObjects.Text;
+    // fourthPlayer: Phaser.GameObjects.Text;
+    // fifthPlayer: Phaser.GameObjects.Text;
+    // sixthPlayer: Phaser.GameObjects.Text;
+    // seventhPlayer: Phaser.GameObjects.Text;
+    // eighthPlayer: Phaser.GameObjects.Text;
+    // ninthPlayer: Phaser.GameObjects.Text;
+    // tenthPlayer: Phaser.GameObjects.Text;
 
     // Word Bank
     wordBank = ['apple', 'banana', 'cherry', 'date', 'elderberry', 'fig', 'grape', 'honeydew', 'kiwi', 'lemon', 'mango', 'nectarine', 'orange', 'papaya', 'quince', 'raspberry', 'strawberry', 'tangerine', 'watermelon', 'apricot', 'blueberry', 'cantaloupe', 'dragonfruit', 'eggplant', 'fennel', 'guava', 'hibiscus', 'iceberg', 'jalapeno', 'kumquat', 'lime', 'mulberry', 'nectarine', 'olive', 'persimmon', 'pineapple', 'plum', 'pomegranate', 'rhubarb', 'starfruit', 'tomato', 'unique', 'yam', 'zucchini', 'acorn', 'bagel', 'cat', 'dog', 'elephant', 'frog', 'giraffe', 'horse', 'iguana', 'jellyfish', 'kangaroo', 'lion', 'monkey', 'narwhal', 'octopus', 'parrot', 'quail', 'rabbit', 'snake', 'tiger', 'umbrella', 'vulture', 'walrus', 'xylophone', 'yak', 'zebra', 'antelope', 'bear', 'cow', 'dolphin', 'eagle', 'fox', 'gorilla', 'hippopotamus', 'iguana', 'jaguar', 'koala', 'lemur', 'moose', 'newt', 'opossum', 'penguin', 'quokka', 'raccoon', 'sloth', 'toucan', 'unicorn', 'viper', 'whale', 'xerus', 'yellowjacket', 'zebra', 'albatross', 'baboon', 'cactus', 'dingo', 'elk', 'fern', 'gecko', 'hawk', 'owl', 'penguin', 'quail', 'rooster', 'sparrow', 'toucan', 'vulture', 'warbler', 'xenops', 'yodeler', 'zebra', 'artichoke', 'blueberry', 'cabbage', 'daffodil', 'eucalyptus', 'fern', 'ginseng', 'hibiscus', 'ivy', 'juniper', 'kelp', 'lavender', 'marigold', 'nasturtium', 'oregano', 'petunia', 'quinoa', 'rosemary', 'sage', 'thyme', 'violet', 'wisteria', 'xenia', 'yucca', 'zinnia', 'acorn', 'ball', 'clock', 'door', 'elephant', 'flag', 'grape', 'hat', 'ink', 'jug', 'kite', 'lemon', 'mask', 'nut', 'octagon', 'park', 'queen', 'radio', 'ship', 'train', 'umbrella', 'vest', 'wagon', 'xylophone', 'yellow', 'zebra', 'axis', 'break', 'crane', 'drum', 'end', 'flare', 'gap', 'hunt', 'icon', 'joke', 'key', 'love', 'mark', 'neck', 'oval', 'park', 'quiz', 'rest', 'snap', 'tale', 'unit', 'void', 'wall', 'yoke', 'zest', 'arm', 'bend', 'cash', 'die', 'ear', 'fit', 'gun', 'ham', 'ink', 'joy', 'kit', 'lad', 'man', 'net', 'oil', 'pen', 'rat', 'sun', 'toy', 'urn', 'vat', 'win', 'yak', 'zip', 'aim', 'ball', 'coat', 'dust', 'egg', 'fan', 'grid', 'horn', 'ink', 'jam', 'log', 'mix', 'nap', 'odd', 'pit', 'rug', 'saw', 'tin', 'undo', 'vet', 'wig', 'you', 'zip', 'amber', 'bench', 'coat', 'deck', 'epic', 'fame', 'gear', 'hand', 'ice', 'jam', 'king', 'log', 'map', 'net', 'oak', 'pet', 'quiz', 'rug', 'sap', 'top', 'urn', 'van', 'web', 'yam', 'zoo', 'angle', 'bar', 'cast', 'deal', 'eel', 'flat', 'gash', 'heat', 'icon', 'jolt', 'king', 'lace', 'mile', 'net', 'oak', 'pit', 'queen', 'rag', 'sat', 'tin', 'urn', 'vet', 'win', 'yet', 'zone', 'alpha', 'bravo', 'charlie', 'delta', 'echo', 'foxtrot', 'golf', 'hotel', 'india', 'juliet', 'kilo', 'lima', 'mike', 'november', 'oscar', 'papa', 'quebec', 'romeo', 'sierra', 'tango', 'uniform', 'victor', 'whiskey', 'xray', 'yankee', 'zulu'];
@@ -78,6 +79,7 @@ export class Game extends Scene {
     playerHps: Record<string, number> | null = null;
     playerWordLines: Record<string, number> | null = null;
 
+    // Fetch user info upon game start
     async getUserInfo() {
         try {
             const response = await axios.get("http://localhost:3000/user", {
@@ -98,10 +100,7 @@ export class Game extends Scene {
         }
     }
 
-    constructor () {
-        super('Game');
-    }
-
+    // Start game
     async startGame() {
         // Check if we have user info, if not, wait for it
         if (!this._userId) {
@@ -119,8 +118,12 @@ export class Game extends Scene {
             }
         }
         
-        // Now start the game backend
+        // Now start the game in the backend
         await this.startGameFromBackend();
+    }
+
+    constructor () {
+        super('Game');
     }
 
     // First thing to run when Game scene is created
@@ -128,8 +131,19 @@ export class Game extends Scene {
         // Load the WebFont script dynamically
         this.load.script('webfont', 'https://ajax.googleapis.com/ajax/libs/webfont/1.6.26/webfont.js');
         
-        // Register the complete event handler FIRST
-        this.load.on('complete', () => {
+        // Start game after WebFont is finished loading by checking for complete event handler
+        this.load.on('complete', async () => {
+            // Make sure all players get correct game ID
+            if (!Game.currentGameId) {
+                const response = await axios.get("http://localhost:3000/lastready", {
+                    withCredentials: true
+                });
+                Game.currentGameId = response.data.gameId;
+                Game.lastReadyUser = response.data.lastReady;
+
+                // Set this._gameId
+                this._gameId = Game.currentGameId;
+            }
             // This ensures preload is truly done before proceeding
             this.startGame();
         });
@@ -138,6 +152,7 @@ export class Game extends Scene {
         this.getUserInfo();
     }
 
+    // After preload is done
     create () {
         // Wait for WebFont to load
         (window as any).WebFont.load({
@@ -145,11 +160,13 @@ export class Game extends Scene {
                 families: ['Press Start 2P']
             },
             active: () => {
+                // Create the game UI elements with the WebFont
                 this.createGameElements();
             }
         });
     }
     
+    // Create the UI elements for the game
     createGameElements() {
         this.camera = this.cameras.main;
         this.camera.setBackgroundColor(0x00cc66); // Slightly deeper green
@@ -163,7 +180,7 @@ export class Game extends Scene {
 
         EventBus.emit('current-scene-ready', this);
 
-        // Create wordsText to display current words to type
+        // Create wordsText to display current words to type (wordList is empty right now, because game is not started yet)
         this.wordsText = this.add.text(512, 200, this.wordList.join(' '), {
             fontFamily: '"Press Start 2P"', 
             fontSize: '18px', 
@@ -185,7 +202,7 @@ export class Game extends Scene {
             wordWrap: {width: 800, useAdvancedWrap: true }
         }).setOrigin(0.5).setDepth(100);
 
-        // Create health display
+        // Create health display (All players' health is initially 5)
         this.healthText = this.add.text(100, 50, 'Health: 5', {
             fontFamily: '"Press Start 2P"', 
             fontSize: '16px', 
@@ -194,7 +211,7 @@ export class Game extends Scene {
             strokeThickness: 6
         }).setDepth(100);
         
-        // Create zone status display
+        // Create zone status display (All players are outside of the zone at game start)
         this.zoneText = this.add.text(100, 130, 'Zone: Safe', {
             fontFamily: '"Press Start 2P"', 
             fontSize: '16px', 
@@ -204,13 +221,13 @@ export class Game extends Scene {
         }).setDepth(100);
 
         // Create top 10 players display
-        this.topTenText = this.add.text(100, 90, 'Current Top 10', {
-            fontFamily: '"Press Start 2P"', 
-            fontSize: '16px', 
-            color: '#00ff00',
-            stroke: '#000000', 
-            strokeThickness: 6
-        }).setDepth(100);
+        // this.topTenText = this.add.text(100, 90, 'Current Top 10', {
+        //     fontFamily: '"Press Start 2P"', 
+        //     fontSize: '16px', 
+        //     color: '#00ff00',
+        //     stroke: '#000000', 
+        //     strokeThickness: 6
+        // }).setDepth(100);
         
         // Create kills display
         this.killsText = this.add.text(800, 50, 'Kills: 0', {
@@ -286,58 +303,52 @@ export class Game extends Scene {
         }
     }
 
+    // This is called from startGame() function above
     // Upon game start, fetch game info from backend
     async startGameFromBackend() {
         // Game is not started yet
         // The last readied user will start it
         if (!this.gameStarted) {
             try {
-                // Retrieve last readied user
+                // First, get this client's user ID
                 if (!this._userId) {
                     const success = await this.getUserInfo();
                     if (!success) return;
                 }
 
-                if (!Game.currentGameId) {
-                    const response = await axios.get("http://localhost:3000/lastready", {
-                        withCredentials: true
-                    });
-                    Game.currentGameId = response.data.gameId;
-                    const lastReadyUser = response.data.lastReady;
+                // Check if this current user's ID == last readied user's ID
+                if (this._userId == Game.lastReadyUser) {
+    
+                    // Last readied user will generate first 10 words randomly using this.wordBank
+                    this.wordList = this.wordBank.sort(() => 0.5 - Math.random()).slice(0, 10);
 
-                    // Set this.gameId
-                    this._gameId = Game.currentGameId;
-                    // Check if this current user == last readied user
-                    if (this._userId == lastReadyUser) {
-        
-                        // Last readied user will generate first 10 words randomly using this.wordBank
-                        this.wordList = this.wordBank.sort(() => 0.5 - Math.random()).slice(0, 10);
-
-                        try {
-                            const gameResponse = await axios.post("http://localhost:3000/startgame", {
-                                gameId: this._gameId,
-                                wordList: this.wordList,
-                                user: this._userId
-                            }, {
-                                withCredentials: true
-                            });
-                            
-                            if (gameResponse.data.success) {
-                                this.gameStarted = true;
-                                await this.fetchGameStatusWhile();
-                            } else {
-                                console.log("Failed to start game:", gameResponse.data.message);
-                                // Maybe implement a retry mechanism or fallback
-                            }
-                        } catch (error) {
-                            console.error("Error starting game:", error);
+                    try {
+                        // Leader starts game with wordList
+                        const gameResponse = await axios.post("http://localhost:3000/startgame", {
+                            gameId: this._gameId,
+                            wordList: this.wordList,
+                            user: this._userId
+                        }, {
+                            withCredentials: true
+                        });
+                        
+                        // Game successfully started in backend
+                        if (gameResponse.data.success) {
+                            this.gameStarted = true;
+                            // Now, enter loop to fetch game status
+                            await this.fetchGameStatusWhile();
+                        } else {
+                            console.log("Failed to start game:", gameResponse.data.message);
+                            // Maybe implement a retry mechanism or fallback
                         }
+                    } catch (error) {
+                        console.error("Error starting game:", error);
                     }
-                    // Not readied user
-                    else {
-                        // Wait for game data to appear in database
-                        await this.waitGameStartWhile();
-                    }
+                }
+                // Not readied user
+                else {
+                    // Wait for game data to appear in database
+                    await this.waitGameStartWhile();
                 }
             }
             catch (error) {
@@ -360,11 +371,8 @@ export class Game extends Scene {
 
         // Game has started, so fetch it
         try {
-
             // Enter loop to fetch game status
             await this.fetchGameStatusWhile();
-
-
         }
         catch (error) {
             console.log(error);
@@ -382,7 +390,7 @@ export class Game extends Scene {
                 withCredentials: true
             });
 
-
+            // Game has started in backend
             if (response.data.gameReady == true) {
                 this.gameStarted = true;
             }
@@ -421,6 +429,7 @@ export class Game extends Scene {
                 return;
             }
 
+            // Fetch game status from backend
             const response = await axios.post("http://localhost:3000/fetchgame", {
                 gameId: this._gameId,
                 user: this._userId
