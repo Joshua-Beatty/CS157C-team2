@@ -181,11 +181,6 @@ export class Queue extends Scene {
             });
         }
     }
-    
-    // Once game starts, change scene to Game
-    changeScene() {
-        this.scene.start('Game');
-    }
 
     // Enter queue when Enter Queue button is pressed
     async enterQueue() {
@@ -325,4 +320,5 @@ export class Queue extends Scene {
             console.error(error);
         }
     }
+
 }
