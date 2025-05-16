@@ -664,12 +664,10 @@ app.post('/fetchgame', async (req, res) => {
     let inZone = false;
     if (lineIndex <= zoneIndex) {
         inZone = true;
-        // Check if user is at least 2 zones behind (instakill)
+        // Check if user is 1 line deep into zone (instakill)
         if ((zoneIndex - lineIndex) == 1) {
-            await client.zAdd(`game:${gameId}:hps`, user, 0)
-            //await client.zScore(`game:${gameId}:hps`, user)
+            await client.zAdd(`game:${gameId}:hps`, [{score:0, value:user}])
         }
-
     }
     // Check if user died (HP = 0)
     let died = false;
