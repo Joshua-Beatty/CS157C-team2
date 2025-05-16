@@ -54,9 +54,6 @@ export class Game extends Scene {
     ninthPlayer: Phaser.GameObjects.Text;
     tenthPlayer: Phaser.GameObjects.Text;
 
-    // Word Bank
-    wordBank = ['apple', 'banana', 'cherry', 'date', 'elderberry', 'fig', 'grape', 'honeydew', 'kiwi', 'lemon', 'mango', 'nectarine', 'orange', 'papaya', 'quince', 'raspberry', 'strawberry', 'tangerine', 'watermelon', 'apricot', 'blueberry', 'cantaloupe', 'dragonfruit', 'eggplant', 'fennel', 'guava', 'hibiscus', 'iceberg', 'jalapeno', 'kumquat', 'lime', 'mulberry', 'nectarine', 'olive', 'persimmon', 'pineapple', 'plum', 'pomegranate', 'rhubarb', 'starfruit', 'tomato', 'unique', 'yam', 'zucchini', 'acorn', 'bagel', 'cat', 'dog', 'elephant', 'frog', 'giraffe', 'horse', 'iguana', 'jellyfish', 'kangaroo', 'lion', 'monkey', 'narwhal', 'octopus', 'parrot', 'quail', 'rabbit', 'snake', 'tiger', 'umbrella', 'vulture', 'walrus', 'xylophone', 'yak', 'zebra', 'antelope', 'bear', 'cow', 'dolphin', 'eagle', 'fox', 'gorilla', 'hippopotamus', 'iguana', 'jaguar', 'koala', 'lemur', 'moose', 'newt', 'opossum', 'penguin', 'quokka', 'raccoon', 'sloth', 'toucan', 'unicorn', 'viper', 'whale', 'xerus', 'yellowjacket', 'zebra', 'albatross', 'baboon', 'cactus', 'dingo', 'elk', 'fern', 'gecko', 'hawk', 'owl', 'penguin', 'quail', 'rooster', 'sparrow', 'toucan', 'vulture', 'warbler', 'xenops', 'yodeler', 'zebra', 'artichoke', 'blueberry', 'cabbage', 'daffodil', 'eucalyptus', 'fern', 'ginseng', 'hibiscus', 'ivy', 'juniper', 'kelp', 'lavender', 'marigold', 'nasturtium', 'oregano', 'petunia', 'quinoa', 'rosemary', 'sage', 'thyme', 'violet', 'wisteria', 'xenia', 'yucca', 'zinnia', 'acorn', 'ball', 'clock', 'door', 'elephant', 'flag', 'grape', 'hat', 'ink', 'jug', 'kite', 'lemon', 'mask', 'nut', 'octagon', 'park', 'queen', 'radio', 'ship', 'train', 'umbrella', 'vest', 'wagon', 'xylophone', 'yellow', 'zebra', 'axis', 'break', 'crane', 'drum', 'end', 'flare', 'gap', 'hunt', 'icon', 'joke', 'key', 'love', 'mark', 'neck', 'oval', 'park', 'quiz', 'rest', 'snap', 'tale', 'unit', 'void', 'wall', 'yoke', 'zest', 'arm', 'bend', 'cash', 'die', 'ear', 'fit', 'gun', 'ham', 'ink', 'joy', 'kit', 'lad', 'man', 'net', 'oil', 'pen', 'rat', 'sun', 'toy', 'urn', 'vat', 'win', 'yak', 'zip', 'aim', 'ball', 'coat', 'dust', 'egg', 'fan', 'grid', 'horn', 'ink', 'jam', 'log', 'mix', 'nap', 'odd', 'pit', 'rug', 'saw', 'tin', 'undo', 'vet', 'wig', 'you', 'zip', 'amber', 'bench', 'coat', 'deck', 'epic', 'fame', 'gear', 'hand', 'ice', 'jam', 'king', 'log', 'map', 'net', 'oak', 'pet', 'quiz', 'rug', 'sap', 'top', 'urn', 'van', 'web', 'yam', 'zoo', 'angle', 'bar', 'cast', 'deal', 'eel', 'flat', 'gash', 'heat', 'icon', 'jolt', 'king', 'lace', 'mile', 'net', 'oak', 'pit', 'queen', 'rag', 'sat', 'tin', 'urn', 'vet', 'win', 'yet', 'zone', 'alpha', 'bravo', 'charlie', 'delta', 'echo', 'foxtrot', 'golf', 'hotel', 'india', 'juliet', 'kilo', 'lima', 'mike', 'november', 'oscar', 'papa', 'quebec', 'romeo', 'sierra', 'tango', 'uniform', 'victor', 'whiskey', 'xray', 'yankee', 'zulu'];
-
     // Accumulated word list
     wordList: string[] = [];
     // Current 10 words for user to type
@@ -164,7 +161,7 @@ export class Game extends Scene {
         EventBus.emit('current-scene-ready', this);
 
         // Create wordsText to display current words to type
-        this.wordsText = this.add.text(512, 200, this.wordList.join(' '), {
+        this.wordsText = this.add.text(512, 200, '', {
             fontFamily: '"Press Start 2P"', 
             fontSize: '18px', 
             color: '#ffffff',
@@ -309,14 +306,9 @@ export class Game extends Scene {
                     this._gameId = Game.currentGameId;
                     // Check if this current user == last readied user
                     if (this._userId == lastReadyUser) {
-        
-                        // Last readied user will generate first 10 words randomly using this.wordBank
-                        this.wordList = this.wordBank.sort(() => 0.5 - Math.random()).slice(0, 10);
-
                         try {
                             const gameResponse = await axios.post("http://localhost:3000/startgame", {
                                 gameId: this._gameId,
-                                wordList: this.wordList,
                                 user: this._userId
                             }, {
                                 withCredentials: true
@@ -324,6 +316,10 @@ export class Game extends Scene {
                             
                             if (gameResponse.data.success) {
                                 this.gameStarted = true;
+
+                                // Fetch the first line of words
+                                this.wordLine = await this.fetchWordLine(this.currentLineIndex);
+
                                 await this.fetchGameStatusWhile();
                             } else {
                                 console.log("Failed to start game:", gameResponse.data.message);
@@ -344,7 +340,6 @@ export class Game extends Scene {
                 console.log(error);
             }
         }
-        
     }
 
     // Loop for checking if game is started (for all players besides last readied player)
@@ -411,6 +406,28 @@ export class Game extends Scene {
 
     }
 
+    // Fetches words for player's current line
+    async fetchWordLine(lineIndex: number): Promise<string[]> {
+        try {
+          const response = await axios.post("http://localhost:3000/getWordLine", {
+            gameId: this._gameId,
+            lineIndex: lineIndex
+          }, {
+            withCredentials: true
+          });
+          
+          if (response.data.success) {
+            return response.data.words;
+          } else {
+            console.error("Failed to fetch word line:", response.data.message);
+            return [];
+          }
+        } catch (error) {
+          console.error("Error fetching word line:", error);
+          return [];
+        }
+      }
+
     // Called per loop of fetchGameStatusWhile()
     async fetchGameStatus() {
         try {
@@ -429,7 +446,7 @@ export class Game extends Scene {
             });
 
             // Check if the response indicates the player is no longer in the game
-            if (!response.data.success || !response.data.wordList) {
+            if (!response.data.success) {
                 console.log("Player no longer in game");
                 this.gameOver = true;
                 return;
@@ -455,18 +472,17 @@ export class Game extends Scene {
             // Update fields
             this.playerHps = response.data.playerHps;
             this.playerWordLines = response.data.playerWordLines;
-            this.wordList = response.data.wordList;
             this.isLeader = response.data.isLeader;
-            // Update wordLine using currentLineIndex
-            this.wordLine = this.wordList.slice(this.currentLineIndex*10, this.currentLineIndex*10+10);
             //this.playerHealth = response.data.hp;
-
             this.inZone = response.data.inZone;
             this.died = response.data.died;
+
+            // If we need to fetch a new line of words
+            if (this.wordLine.length === 0) {
+                this.wordLine = await this.fetchWordLine(this.currentLineIndex);
+            }
             
             // Update display
-            this.wordsText.setText(this.wordLine.join(' '));
-            this.healthText.setText(`Health: ${this.userHp}`);
 
             if (this.wordsText && this.wordsText.scene) {
                 this.wordsText.setText(this.wordLine.join(' '));
@@ -525,7 +541,6 @@ export class Game extends Scene {
                     // User is not done
                     else {
                         await this.updateGameStatus();
-                        await this.fetchGameStatus();
                     }
                 }
                 // Word is not correct
@@ -533,7 +548,6 @@ export class Game extends Scene {
                     // Add a shake effect for incorrect word
                     this.cameras.main.shake(100, 0.01);
                     await this.updateGameStatus();
-                    await this.fetchGameStatus();
                 }
             }
             // Only accept alphanumeric characters as user input
@@ -559,15 +573,20 @@ export class Game extends Scene {
         this.cameras.main.flash(200, 0, 255, 255, true);
         
         await this.updateGameStatus();
-        await this.fetchGameStatus();
+
+        // Fetch the next line of words from the backend
+        this.wordLine = await this.fetchWordLine(this.currentLineIndex);
+        
+        // Update display with new words
+        if (this.wordsText && this.wordsText.scene) {
+            this.wordsText.setText(this.wordLine.join(' '));
+        }
 
         // If player is leading, then add new words and increment zone index
         if (this.isLeader) {
             console.log(`I AM THE LEADER - generating new words at line ${this.currentLineIndex}`);
             await this.updateLeaderStatus();
         }
-
-        await this.fetchGameStatus();
     }
 
     // Update game status in Redis database after each completed word
@@ -619,13 +638,9 @@ export class Game extends Scene {
     // Update leader status and zone position (only called by leader)
     async updateLeaderStatus() {
         try {
-            // Generate 10 new words randomly
-            const newWords = this.wordBank.sort(() => 0.5 - Math.random()).slice(0, 10);
-
             const response = await axios.post("http://localhost:3000/updateleader", {
                 gameId: this._gameId,
                 currentLineIndex: this.currentLineIndex,
-                newWords: newWords,
                 leader: this._userId
             }, {
                 withCredentials: true

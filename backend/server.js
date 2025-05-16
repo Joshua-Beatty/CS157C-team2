@@ -43,12 +43,25 @@ const r = new ioredis({
     password: '5Xr9!fH2s@Dp7t$kQb8yP0zLwE#Vg3zR'
 });
 
+const wordBank = [
+    'apple', 'banana', 'cherry', 'date', 'elderberry', 'fig', 'grape', 'honeydew', 'kiwi', 'lemon', 'mango', 'nectarine', 'orange', 'papaya', 'quince', 'raspberry', 'strawberry', 'tangerine', 'watermelon', 'apricot', 'blueberry', 'cantaloupe', 'dragonfruit', 'eggplant', 'fennel', 'guava', 'hibiscus', 'iceberg', 'jalapeno', 'kumquat', 'lime', 'mulberry', 'nectarine', 'olive', 'persimmon', 'pineapple', 'plum', 'pomegranate', 'rhubarb', 'starfruit', 'tomato', 'unique', 'yam', 'zucchini', 'acorn', 'bagel', 'cat', 'dog', 'elephant', 'frog', 'giraffe', 'horse', 'iguana', 'jellyfish', 'kangaroo', 'lion', 'monkey', 'narwhal', 'octopus', 'parrot', 'quail', 'rabbit', 'snake', 'tiger', 'umbrella', 'vulture', 'walrus', 'xylophone', 'yak', 'zebra', 'antelope', 'bear', 'cow', 'dolphin', 'eagle', 'fox', 'gorilla', 'hippopotamus', 'iguana', 'jaguar', 'koala', 'lemur', 'moose', 'newt', 'opossum', 'penguin', 'quokka', 'raccoon', 'sloth', 'toucan', 'unicorn', 'viper', 'whale', 'xerus', 'yellowjacket', 'zebra', 'albatross', 'baboon', 'cactus', 'dingo', 'elk', 'fern', 'gecko', 'hawk', 'owl', 'penguin', 'quail', 'rooster', 'sparrow', 'toucan', 'vulture', 'warbler', 'xenops', 'yodeler', 'zebra', 'artichoke', 'blueberry', 'cabbage', 'daffodil', 'eucalyptus', 'fern', 'ginseng', 'hibiscus', 'ivy', 'juniper', 'kelp', 'lavender', 'marigold', 'nasturtium', 'oregano', 'petunia', 'quinoa', 'rosemary', 'sage', 'thyme', 'violet', 'wisteria', 'xenia', 'yucca', 'zinnia', 'acorn', 'ball', 'clock', 'door', 'elephant', 'flag', 'grape', 'hat', 'ink', 'jug', 'kite', 'lemon', 'mask', 'nut', 'octagon', 'park', 'queen', 'radio', 'ship', 'train', 'umbrella', 'vest', 'wagon', 'xylophone', 'yellow', 'zebra', 'axis', 'break', 'crane', 'drum', 'end', 'flare', 'gap', 'hunt', 'icon', 'joke', 'key', 'love', 'mark', 'neck', 'oval', 'park', 'quiz', 'rest', 'snap', 'tale', 'unit', 'void', 'wall', 'yoke', 'zest', 'arm', 'bend', 'cash', 'die', 'ear', 'fit', 'gun', 'ham', 'ink', 'joy', 'kit', 'lad', 'man', 'net', 'oil', 'pen', 'rat', 'sun', 'toy', 'urn', 'vat', 'win', 'yak', 'zip', 'aim', 'ball', 'coat', 'dust', 'egg', 'fan', 'grid', 'horn', 'ink', 'jam', 'log', 'mix', 'nap', 'odd', 'pit', 'rug', 'saw', 'tin', 'undo', 'vet', 'wig', 'you', 'zip', 'amber', 'bench', 'coat', 'deck', 'epic', 'fame', 'gear', 'hand', 'ice', 'jam', 'king', 'log', 'map', 'net', 'oak', 'pet', 'quiz', 'rug', 'sap', 'top', 'urn', 'van', 'web', 'yam', 'zoo', 'angle', 'bar', 'cast', 'deal', 'eel', 'flat', 'gash', 'heat', 'icon', 'jolt', 'king', 'lace', 'mile', 'net', 'oak', 'pit', 'queen', 'rag', 'sat', 'tin', 'urn', 'vet', 'win', 'yet', 'zone', 'alpha', 'bravo', 'charlie', 'delta', 'echo', 'foxtrot', 'golf', 'hotel', 'india', 'juliet', 'kilo', 'lima', 'mike', 'november', 'oscar', 'papa', 'quebec', 'romeo', 'sierra', 'tango', 'uniform', 'victor', 'whiskey', 'xray', 'yankee', 'zulu',
+  ];
+
+async function initializeWordBank() {
+const exists = await client.exists('wordBank');
+if (!exists) {
+    console.log('Initializing word bank in Redis...');
+    // Add all words to a Redis set
+    await client.sAdd('wordBank', wordBank);
+    console.log(`Word bank initialized with ${wordBank.length} words`);
+}
+}
+
 // Connect to Redis
 client.connect()
-    .then(() => {
+    .then(async () => {
         console.log('Connected to Redis');
-
-        // Ping to verify
+        await initializeWordBank();
         return client.ping();
     })
     .then(res => {
@@ -446,7 +459,7 @@ app.get('/user', (req, res) => {
 // Start game endpoint (only for last readied player)
 app.post('/startgame', async (req, res) => {
     // Get gameId and wordList from last readied player
-    const { gameId, wordList, user } = req.body;
+    const { gameId, user } = req.body;
 
     // IMPORTANT: Check if this user is actually the last one who readied up
     const lastReadyUser = await client.get(`queue:${gameId}:lastReady`);
@@ -482,13 +495,14 @@ app.post('/startgame', async (req, res) => {
         
     }
     // Create word list
-    console.log(wordList);
-    for (let i = 0; i < wordList.length; i++ ) {
-        await client.rPush(`game:${gameId}:wordList`, wordList[i]);
-    }
+    // Generate initial 10 words from the word bank
+    const initialWords = await client.sRandMember('wordBank', 10);
+    
+    // Add words to the game's word list
+    await client.rPush(`game:${gameId}:wordList`, ...initialWords);
 
     console.log(`Creating game ${gameId} with ${players.length} players`);
-    console.log(`Adding ${wordList.length} words to game ${gameId}`);
+    console.log(`Adding ${initialWords.length} words to game ${gameId}`);
 
     // Set zoneIndex to 0
     await client.set(`game:${gameId}:zoneIndex`, -2);
@@ -503,6 +517,43 @@ app.post('/startgame', async (req, res) => {
     return res.json({success: true});
 
 })
+
+// Gets words for specific line
+app.post('/getWordLine', async (req, res) => {
+    const { gameId, lineIndex } = req.body;
+    
+    if (!gameId || lineIndex === undefined) {
+      return res.json({ success: false, message: "Missing gameId or lineIndex" });
+    }
+    
+    try {
+      // Calculate start and end indices (10 words per line)
+      const startIndex = lineIndex * 10;
+      const endIndex = startIndex + 9;
+      
+      // Get words for this line from Redis
+      const words = await client.lRange(`game:${gameId}:wordList`, startIndex, endIndex);
+      
+      // If we need more words (fewer than 10 returned), generate them
+      if (words.length < 10) {
+        const wordsMissing = 10 - words.length;
+        
+        // Generate new random words from the word bank
+        const newWords = await client.sRandMember('wordBank', wordsMissing);
+        
+        // Add new words to the game wordList
+        if (newWords.length > 0) {
+          await client.rPush(`game:${gameId}:wordList`, ...newWords);
+          words.push(...newWords);
+        }
+      }
+      
+      return res.json({ success: true, words: words });
+    } catch (error) {
+      console.error('Error getting word line:', error);
+      return res.json({ success: false, message: "Error getting words" });
+    }
+  });
 
 // Check game ready (for all players other than last readied player)
 app.post('/checkgameready', async (req, res) => {
@@ -585,36 +636,6 @@ app.post('/updategame', async (req, res) => {
 
 })
 
-    
-
-
-// Update game endpoint (each user uses this to update their status in game)
-// app.post('/updategame', async (req, res) => {
-//     // Only leading player will add zone words and new words
-//     const { hp, wordCount, newWords, newZoneWords } = req.body;
-//     const { gameId } = req.body;
-//     const user = req.session.user;
-
-//     // Update HP in Redis database
-//     await client.zAdd(`game:${gameId}:hps`, [{score: hp, value: user}])
-//     // Update wordcount in Redis database
-//     await client.zAdd(`game:${gameId}:wordCounts`, [{score: wordCount, value: user}])
-//     // Update wordList in Redis database
-//     for (let i = 0; i < newWords.length; i++ ) {
-//         await client.rPush(`game:${gameId}:wordList`, newWords[i]);
-//     }
-//     // Update zoneList in Redis database
-//     for (let i = 0; i < newZoneWords.length; i++ ) {
-//         await client.rPush(`game:${gameId}:zoneList`, newZoneWords[i]);
-//     }
-//     // If player's HP is 0, add them to the list of eliminated players
-//     if (hp == 0) {
-//         await client.rPush(`game:${gameId}:eliminated`, user);
-//     }
-
-
-// })
-
 // Fetch game endpoint (each user uses this to update their display of other users' status)
 app.post('/fetchgame', async (req, res) => {
     const { gameId, user } = req.body;
@@ -693,68 +714,9 @@ app.post('/fetchgame', async (req, res) => {
 
 })
 
-
-// Gets zone list from database
-// app.post('/getzonelist', async (req, res) => {
-//     const { gameId } = req.body;
-    
-//     // Get zone list
-//     const zoneList = await client.lRange(`game:${gameId}:zoneList`, 0, -1);
-    
-//     return res.json({ success: true, zoneList: zoneList });
-// });
-
-// Checks zone list from database
-// app.post('/checkzone', async (req, res) => {
-//     const { gameId, currentWord } = req.body;
-//     const user = req.session.user;
-    
-//     // Get zone list
-//     const zoneList = await client.lRange(`game:${gameId}:zoneList`, 0, -1);
-    
-//     // Check if current word is in zone
-//     const inZone = zoneList.includes(currentWord);
-    
-//     if (inZone) {
-//         // Get current HP
-//         const playerHp = await client.zScore(`game:${gameId}:hps`, user);
-        
-//         // Decrement HP if in zone
-//         if (playerHp > 0) {
-//             await client.zAdd(`game:${gameId}:hps`, [{score: playerHp - 1, value: user}]);
-            
-//             // If HP is now 0, add to eliminated list
-//             if (playerHp - 1 <= 0) {
-//                 await client.rPush(`game:${gameId}:eliminated`, user);
-                
-//                 // Add kill to leader's score
-//                 // Get player with highest word count
-//                 const leader = await client.zRange(`game:${gameId}:wordLines`, 0, 0, {REV: true});
-//                 // If such player exists
-//                 if (leader.length > 0) {
-//                     const leaderKills = await client.get(`game:${gameId}:${leader[0]}:kills`) || 0;
-//                     await client.set(`game:${gameId}:${leader[0]}:kills`, parseInt(leaderKills) + 1);
-//                 }
-//             }
-            
-//             return res.json({ 
-//                 success: true, 
-//                 inZone: true, 
-//                 newHp: playerHp - 1 
-//             });
-//         }
-//     }
-    
-//     return res.json({ success: true, inZone: inZone });
-// });
-
 // Updates current leader in game
 app.post('/updateleader', async (req, res) => {
-    const { gameId, currentLineIndex, newWords, leader } = req.body;
-
-    // Before adding new words, check current count
-    const currentWordCount = await client.lLen(`game:${gameId}:wordList`);
-    console.log(`Current word count in Redis: ${currentWordCount}`);
+    const { gameId, currentLineIndex, leader } = req.body;
 
     // Set new leader
     await client.set(`game:${gameId}:leader`, leader);
@@ -762,81 +724,19 @@ app.post('/updateleader', async (req, res) => {
     const zoneIndex = currentLineIndex - 2;
     await client.set(`game:${gameId}:zoneIndex`, zoneIndex);
 
-    // Update wordList with new words
+    // Generate 10 new random words
+    const newWords = await client.sRandMember('wordBank', 10);
+
+    // Add the new words to the game
     try {
-        for (let i = 0; i < newWords.length; i++) {
-            await client.rPush(`game:${gameId}:wordList`, newWords[i]);
-        }
+        await client.rPush(`game:${gameId}:wordList`, ...newWords);
         console.log(`Successfully added ${newWords.length} words to game ${gameId}`);
-        const newWordCount = await client.lLen(`game:${gameId}:wordList`);
-        console.log(`New word count in Redis: ${newWordCount}`);
-        const leader = await r.zrevrange(`game:${gameId}:wordLines`, 0, 0);
-        console.log(leader[0])
+        return res.json({ success: true });
     } catch (error) {
         console.error(`Error adding words to Redis: ${error}`);
         return res.json({ success: false, message: "Error adding words" });
     }
-
 });
-
-
-// app.post('/updateleader', async (req, res) => {
-//     const { gameId, wordCount } = req.body;
-//     const user = req.session.user;
-    
-//     // Update this player's word count
-//     await client.zAdd(`game:${gameId}:wordCounts`, [{score: wordCount, value: user}]);
-    
-//     // Check if this player is the leader
-//     const playerWordCounts = await client.zRange(`game:${gameId}:wordCounts`, 0, -1, {
-//         REV: true, 
-//         WITHSCORES: true
-//     });
-    
-//     let isLeader = false;
-//     let leaderScore = 0;
-    
-//     // Check if this player has the highest score
-//     if (playerWordCounts.length >= 2 && playerWordCounts[0] === user) {
-//         isLeader = true;
-//         leaderScore = parseInt(playerWordCounts[1]);
-//     }
-    
-//     // If player is leader, update zone
-//     if (isLeader) {
-//         // Calculate zone size based on milestones
-//         let zoneGap = 9; // Start with 9 words behind (at milestone 10)
-        
-//         // Reduce zone gap by 1 every 10 words after the first 10
-//         if (wordCount > 10) {
-//             const milestonesPassed = Math.floor((wordCount - 10) / 10);
-//             zoneGap = Math.max(1, 9 - milestonesPassed);
-//         }
-        
-//         // Calculate the zone position (leader position - gap)
-//         const zonePosition = Math.max(0, wordCount - zoneGap);
-        
-//         // Get all words up to zonePosition
-//         const wordList = await client.lRange(`game:${gameId}:wordList`, 0, zonePosition - 1);
-        
-//         // Clear the existing zone list
-//         await client.del(`game:${gameId}:zoneList`);
-        
-//         // Add all words up to zonePosition to zone list
-//         if (wordList.length > 0) {
-//             await client.rPush(`game:${gameId}:zoneList`, ...wordList);
-//         }
-        
-//         return res.json({ 
-//             success: true, 
-//             isLeader: true, 
-//             zonePosition: zonePosition, 
-//             zoneGap: zoneGap
-//         });
-//     }
-    
-//     return res.json({ success: true, isLeader: false });
-// });
 
 // Gets leader kills
 app.post('/getleaderkills', async (req, res) => {
