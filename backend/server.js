@@ -576,20 +576,6 @@ app.post('/getWordLine', async (req, res) => {
             endIndex                   // ARGV[2]
         );
       
-      // If we need more words (fewer than 10 returned), generate them
-      if (words.length < 10) {
-        const wordsMissing = 10 - words.length;
-        
-        // Generate new random words from the word bank
-        const newWords = await client.sRandMember('wordBank', wordsMissing);
-        
-        // Add new words to the game wordList
-        if (newWords.length > 0) {
-          await client.rPush(`game:${gameId}:wordList`, ...newWords);
-          words.push(...newWords);
-        }
-      }
-      
       return res.json({ success: true, words: words });
     } catch (error) {
       console.error('Error getting word line:', error);
@@ -760,19 +746,35 @@ app.post('/fetchgame', async (req, res) => {
 app.post('/updateleader', async (req, res) => {
     const { gameId, currentLineIndex, leader } = req.body;
 
-    // Set new leader
-    await client.set(`game:${gameId}:leader`, leader);
-    // Set new zone index
-    const zoneIndex = currentLineIndex - 2;
-    await client.set(`game:${gameId}:zoneIndex`, zoneIndex);
-
-    // Generate 10 new random words
-    const newWords = await client.sRandMember('wordBank', 10);
-
     // Add the new words to the game
     try {
-        await client.rPush(`game:${gameId}:wordList`, ...newWords);
-        console.log(`Successfully added ${newWords.length} words to game ${gameId}`);
+        // Use a transaction to make updates atomic
+        await r.multi()
+        .set(`game:${gameId}:leader`, leader)
+        .set(`game:${gameId}:zoneIndex`, currentLineIndex - 2)
+        .exec();
+
+        // Generate 10 new random words atomically using Lua script
+        const luaScript = `
+          local gameKey = KEYS[1]
+        
+          -- Generate 10 new random words
+          local newWords = redis.call('SRANDMEMBER', 'wordBank', 10)
+        
+          -- Add words to the game's word list
+          for i, word in ipairs(newWords) do
+          redis.call('RPUSH', gameKey, word)
+          end
+        
+          return #newWords
+        `
+        const wordCount = await r.eval(
+            luaScript,
+            1,                         // Number of keys
+            `game:${gameId}:wordList`  // Key #1
+          );
+          
+        console.log(`Successfully added ${wordCount} words to game ${gameId}`);
         return res.json({ success: true });
     } catch (error) {
         console.error(`Error adding words to Redis: ${error}`);
