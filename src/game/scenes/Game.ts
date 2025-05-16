@@ -442,6 +442,7 @@ export class Game extends Scene {
                 return;
             }
 
+            // Check if game is ended (only 1 player alive)
             if (response.data.gameEnded) {
                 this.gameOver = true;
                 
