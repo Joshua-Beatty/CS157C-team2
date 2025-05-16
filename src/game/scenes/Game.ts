@@ -443,10 +443,10 @@ export class Game extends Scene {
             }
 
             // Check if game is ended (only 1 player alive)
-            if (response.data.gameEnded) {
+            if (response.data.gameOver) {
                 this.gameOver = true;
                 
-                if (response.data.isWinner) {
+                if (response.data.isWinner && this.scene.isActive()) {
                     this.playerWin();
                 }
                 
