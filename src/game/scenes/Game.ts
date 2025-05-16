@@ -473,7 +473,16 @@ export class Game extends Scene {
             this.playerHps = response.data.playerHps;
             this.playerWordLines = response.data.playerWordLines;
             this.isLeader = response.data.isLeader;
-            //this.playerHealth = response.data.hp;
+            if (this.isLeader) {
+                if (this.leaderText && this.leaderText.scene) {
+                    this.leaderText.setText('LEADER');
+                    this.leaderText.setColor('#ffff00');
+                }
+            } else {
+                if (this.leaderText && this.leaderText.scene) {
+                    this.leaderText.setText(''); // Clear the leader text
+                }
+            }
             this.inZone = response.data.inZone;
             this.died = response.data.died;
 
@@ -582,7 +591,7 @@ export class Game extends Scene {
             this.wordsText.setText(this.wordLine.join(' '));
         }
 
-        // If player is leading, then add new words and increment zone index
+        // If player is leading, update leader
         if (this.isLeader) {
             console.log(`I AM THE LEADER - generating new words at line ${this.currentLineIndex}`);
             await this.updateLeaderStatus();
@@ -605,34 +614,6 @@ export class Game extends Scene {
         catch (error) {
             console.log(error);
         }
-    }
-
-    // Check if player is leading
-    async isPlayerLeading() {
-        if (!this._userId) {
-            await this.getUserInfo();
-        }
-
-        if (!this.playerWordLines) return false;
-
-        try {
-            let maxScore = 0;
-            let leadPlayer = null;
-            
-            // Find player with highest score
-            for (const [player, score] of Object.entries(this.playerWordLines)) {
-                if (score > maxScore) {
-                    maxScore = score;
-                    leadPlayer = player;
-                }
-            }
-            
-            return this._userId === leadPlayer;
-        }
-        catch (error) {
-            console.log(error);
-            return false;
-        }   
     }
 
     // Update leader status and zone position (only called by leader)

@@ -668,34 +668,29 @@ app.post('/updategame', async (req, res) => {
 app.post('/fetchgame', async (req, res) => {
     const { gameId, user } = req.body;
     
-    // Transform the flattened array into a proper object
+    // Get all player line indices
+    const allPlayers = await client.zRange(`game:${gameId}:wordLines`, 0, -1, { WITHSCORES: true });
     const playerWordLines = {};
-    if (Object.keys(playerWordLines).length === 0 || playerWordLines[user] === undefined) {
-        // Direct score check if the first approach fails
-        const directScore = await client.zScore(`game:${gameId}:wordLines`, user);
-        
-        if (directScore !== null) {
-            playerWordLines[user] = parseInt(directScore) || 0;
-        } else {
-            // Last resort - default to 0 for this player
-            playerWordLines[user] = 0;
-        }
+
+    // Convert the flattened array into a proper object
+    for (let i = 0; i < allPlayers.length; i += 2) {
+        const player = allPlayers[i];
+        const score = parseInt(allPlayers[i + 1]) || 0;
+        playerWordLines[player] = score;
     }
+
     
-    
-    // Do the same transformation for player HPs
+    // Get all player HP values
+    const allPlayerHps = await client.zRange(`game:${gameId}:hps`, 0, -1, { WITHSCORES: true });
     const playerHps = {};
-    if (Object.keys(playerHps).length === 0 || playerHps[user] === undefined) {
-        // Direct score check if the first approach fails
-        const directScore = await client.zScore(`game:${gameId}:hps`, user);
-        
-        if (directScore !== null) {
-            playerHps[user] = parseInt(directScore) || 0;
-        } else {
-            // Last resort - default to 0 for this player
-            playerHps[user] = 0;
-        }
+
+    // Convert the flattened array into a proper object
+    for (let i = 0; i < allPlayerHps.length; i += 2) {
+        const player = allPlayerHps[i];
+        const health = parseInt(allPlayerHps[i + 1]) || 0;
+        playerHps[player] = health;
     }
+    
     const leader = await r.zrevrange(`game:${gameId}:wordLines`, 0, 0);
     const isLeader = leader[0] === user;
 
