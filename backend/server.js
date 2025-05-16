@@ -530,9 +530,51 @@ app.post('/getWordLine', async (req, res) => {
       // Calculate start and end indices (10 words per line)
       const startIndex = lineIndex * 10;
       const endIndex = startIndex + 9;
+
+      // Use a Lua script to atomically check words and add if needed
+      const luaScript = `
+        local gameKey = KEYS[1]
+        local startIndex = tonumber(ARGV[1])
+        local endIndex = tonumber(ARGV[2])
+        
+        -- Get existing words for this line
+        local words = redis.call('LRANGE', gameKey, startIndex, endIndex)
+        
+        -- If we have 10 words already, just return them
+        if #words == 10 then
+        return words
+        end
+        
+        -- Calculate how many words we need
+        local wordsMissing = 10 - #words
+        
+        -- Only generate words if we need more and aren't at the end yet
+        if wordsMissing > 0 then
+        -- Generate new words using SRANDMEMBER
+        local newWords = redis.call('SRANDMEMBER', 'wordBank', wordsMissing)
+        
+        -- Add new words to the game's word list
+        for i, word in ipairs(newWords) do
+            redis.call('RPUSH', gameKey, word)
+        end
+        
+        -- Append new words to our result
+        for i, word in ipairs(newWords) do
+            table.insert(words, word)
+        end
+        end
+        
+        return words
+      `
       
-      // Get words for this line from Redis
-      const words = await client.lRange(`game:${gameId}:wordList`, startIndex, endIndex);
+      // Execute the Lua script
+      const words = await r.eval(
+            luaScript,
+            1,                         // Number of keys
+            `game:${gameId}:wordList`, // Key #1
+            startIndex,                // ARGV[1]
+            endIndex                   // ARGV[2]
+        );
       
       // If we need more words (fewer than 10 returned), generate them
       if (words.length < 10) {
