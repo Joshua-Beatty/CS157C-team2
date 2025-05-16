@@ -420,6 +420,13 @@ app.post('/queuestatus', async (req, res) => {
 
 })
 
+// User endpoint (get user)
+app.get('/user', (req, res) => {
+    const user = req.session.user;
+    return res.json({ success:true, user: user});
+})
+
+
 
 // Last ready endpoint (to check which player starts the game)
 app.get('/lastready', async (req, res) => {
@@ -433,13 +440,6 @@ app.get('/lastready', async (req, res) => {
 
     // Game ID is set to current Queue ID
     return res.json({ success: true, lastReady: userLastReady, gameId: queueId});
-})
-
-
-// User endpoint (get user)
-app.get('/user', (req, res) => {
-    const user = req.session.user;
-    return res.json({ success:true, user: user});
 })
 
 
@@ -464,24 +464,22 @@ app.post('/startgame', async (req, res) => {
 
     console.log(`Authorized user ${user} creating game ${gameId}`);
 
-    // Set game:<gameId>:ready to 1 after creating game, for other users to join game
-    await client.set(`game:${gameId}:ready`, 1);
-
     // Get all players from queue
     const players = await client.zRange(`queue:${gameId}`, 0, -1);
 
-    // Add each player to a new game in Redis database
+    // Add each player to this new game in Redis database
     for (let i = 0; i < players.length; i++) {
         const player = players[i];
         // Push player to list of players
         await client.lPush(`game:${gameId}`, player);
         // Push player to sorted set for player HPs (starting HP is 5)
         await client.zAdd(`game:${gameId}:hps`, [{score: 5, value: player}]);
-        // Create sorted set for player word count (starting wordCount is 0)
+        // Create sorted set for player word lines (starting word line is 0)
         await client.zAdd(`game:${gameId}:wordLines`, [{score: 0, value: player}]);
         
     }
-    // Create word list
+
+    // Create word list using wordList from request
     console.log(wordList);
     for (let i = 0; i < wordList.length; i++ ) {
         await client.rPush(`game:${gameId}:wordList`, wordList[i]);
@@ -490,12 +488,16 @@ app.post('/startgame', async (req, res) => {
     console.log(`Creating game ${gameId} with ${players.length} players`);
     console.log(`Adding ${wordList.length} words to game ${gameId}`);
 
-    // Set zoneIndex to 0
+    // Set zoneIndex to -2 (2 lines before line 0)
     await client.set(`game:${gameId}:zoneIndex`, -2);
 
-    await client.del(`queue:${gameId}:locked`);
+    // Don't think this is being used
+    // await client.del(`queue:${gameId}:locked`);
 
-    // Increment queue:counter
+    // Set game:<gameId>:ready to 1 after creating game, for other users to join game
+    await client.set(`game:${gameId}:ready`, 1);
+
+    // Increment queue:counter, so new players entering queue are not entering this game
     await client.incr("queue:counter");
 
     console.log(`Game ${gameId} created successfully, queue counter incremented`);
@@ -519,34 +521,36 @@ app.post('/checkgameready', async (req, res) => {
     }
 })
 
-// Add to server.js
-app.post('/lockqueueid', async (req, res) => {
-    const { queueId } = req.body;
+// Don't think this is being used
+// app.post('/lockqueueid', async (req, res) => {
+//     const { queueId } = req.body;
     
-    // Set a lock flag to prevent ID conflicts during game creation
-    await client.set(`queue:${queueId}:locked`, 1);
+//     // Set a lock flag to prevent ID conflicts during game creation
+//     await client.set(`queue:${queueId}:locked`, 1);
     
-    return res.json({ success: true });
-});
+//     return res.json({ success: true });
+// });
 
-app.get('/getgameid', async (req, res) => {
-    // Get current queueId
-    const queueId = await client.get("queue:counter");
+// Don't think this is being used
+// app.get('/getgameid', async (req, res) => {
+//     // Get current queueId
+//     const queueId = await client.get("queue:counter");
     
-    // Check if previous queue is locked (game creation in progress)
-    const prevQueueId = (parseInt(queueId) - 1).toString();
-    const isLocked = await client.get(`queue:${prevQueueId}:locked`);
+//     // Check if previous queue is locked (game creation in progress)
+//     const prevQueueId = (parseInt(queueId) - 1).toString();
+//     const isLocked = await client.get(`queue:${prevQueueId}:locked`);
     
-    // If previous queue is locked, use that ID instead
-    if (isLocked === '1') {
-        return res.json({ success: true, gameId: prevQueueId });
-    }
+//     // If previous queue is locked, use that ID instead
+//     if (isLocked === '1') {
+//         return res.json({ success: true, gameId: prevQueueId });
+//     }
     
-    // Otherwise, use actual game ID (one less than current queue ID)
-    const gameId = parseInt(queueId) - 1;
-    return res.json({ success: true, gameId: gameId.toString() });
-});
+//     // Otherwise, use actual game ID (one less than current queue ID)
+//     const gameId = parseInt(queueId) - 1;
+//     return res.json({ success: true, gameId: gameId.toString() });
+// });
 
+// Called for each user keyboard input
 app.post('/updategame', async (req, res) => {
     const { gameId, hp, currentLineIndex, user } = req.body;
 
@@ -655,9 +659,15 @@ app.post('/fetchgame', async (req, res) => {
     // Check if user is in zone
     const lineIndex = await client.zScore(`game:${gameId}:wordLines`, user);
     const zoneIndex = await client.get(`game:${gameId}:zoneIndex`);
+    
+    // Check if user is in zone
     let inZone = false;
     if (lineIndex <= zoneIndex) {
         inZone = true;
+        // Check if user is 1 line deep into zone (instakill)
+        if ((zoneIndex - lineIndex) == 1) {
+            await client.zAdd(`game:${gameId}:hps`, [{score:0, value:user}])
+        }
     }
     // Check if user died (HP = 0)
     let died = false;
