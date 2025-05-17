@@ -57,6 +57,26 @@ if (!exists) {
 }
 }
 
+// Helper function to update overall average WPM
+async function updateOverallAverageWpm(username) {
+    try {
+        const avgWpmHistory = await client.lRange(`user:${username}:avg_wpm_history`, 0, -1);
+        
+        if (avgWpmHistory.length > 0) {
+            let totalWpm = 0;
+            for (const wpm of avgWpmHistory) {
+                totalWpm += parseInt(wpm);
+            }
+            
+            const overallAvgWpm = Math.round(totalWpm / avgWpmHistory.length);
+            await client.set(`user:${username}:overall_avg_wpm`, overallAvgWpm.toString());
+            console.log(`Updated overall average WPM for ${username} to ${overallAvgWpm}`);
+        }
+    } catch (error) {
+        console.error(`Error updating overall average WPM for ${username}:`, error);
+    }
+}
+
 // Connect to Redis
 client.connect()
     .then(async () => {
@@ -489,6 +509,10 @@ app.post('/startgame', async (req, res) => {
         await client.zAdd(`game:${gameId}:hps`, [{score: 5, value: player}]);
         // Create sorted set for player word lines (starting word line is 0)
         await client.zAdd(`game:${gameId}:wordLines`, [{score: 0, value: player}]);
+
+        // Add WPM tracking for this player (initialize at 0)
+        await client.zAdd(`game:${gameId}:wpm`, [{score: 0, value: player}]);
+        await client.zAdd(`game:${gameId}:avgWpm`, [{score: 0, value: player}]);
         
     }
     // Create word list
@@ -599,36 +623,6 @@ app.post('/checkgameready', async (req, res) => {
     }
 })
 
-// Don't think this is being used
-// app.post('/lockqueueid', async (req, res) => {
-//     const { queueId } = req.body;
-    
-//     // Set a lock flag to prevent ID conflicts during game creation
-//     await client.set(`queue:${queueId}:locked`, 1);
-    
-//     return res.json({ success: true });
-// });
-
-// Don't think this is being used
-// app.get('/getgameid', async (req, res) => {
-//     // Get current queueId
-//     const queueId = await client.get("queue:counter");
-    
-//     // Check if previous queue is locked (game creation in progress)
-//     const prevQueueId = (parseInt(queueId) - 1).toString();
-//     const isLocked = await client.get(`queue:${prevQueueId}:locked`);
-    
-//     // If previous queue is locked, use that ID instead
-//     if (isLocked === '1') {
-//         return res.json({ success: true, gameId: prevQueueId });
-//     }
-    
-//     // Otherwise, use actual game ID (one less than current queue ID)
-//     const gameId = parseInt(queueId) - 1;
-//     return res.json({ success: true, gameId: gameId.toString() });
-// });
-
-// Called for each user keyboard input
 app.post('/updategame', async (req, res) => {
     const { gameId, hp, currentLineIndex, user } = req.body;
 
@@ -672,7 +666,7 @@ app.post('/fetchgame', async (req, res) => {
     const { gameId, user } = req.body;
     
     // Get all player line indices
-    const allPlayers = await client.zRange(`game:${gameId}:wordLines`, 0, -1, { WITHSCORES: true });
+    const allPlayers = await r.zrange(`game:${gameId}:wordLines`, 0, -1, 'WITHSCORES');
     const playerWordLines = {};
 
     // Convert the flattened array into a proper object
@@ -684,7 +678,7 @@ app.post('/fetchgame', async (req, res) => {
 
     
     // Get all player HP values
-    const allPlayerHps = await client.zRange(`game:${gameId}:hps`, 0, -1, { WITHSCORES: true });
+    const allPlayerHps = await r.zrange(`game:${gameId}:hps`, 0, -1, 'WITHSCORES');
     const playerHps = {};
 
     // Convert the flattened array into a proper object
@@ -692,6 +686,17 @@ app.post('/fetchgame', async (req, res) => {
         const player = allPlayerHps[i];
         const health = parseInt(allPlayerHps[i + 1]) || 0;
         playerHps[player] = health;
+    }
+
+    // Get all player wpms
+    const allPlayerWpm = await r.zrange(`game:${gameId}:wpm`, 0, -1, 'WITHSCORES');
+    const playerWpm = {};
+    
+    // Convert the flattened array into a proper object
+    for (let i = 0; i < allPlayerWpm.length; i += 2) {
+        const player = allPlayerWpm[i];
+        const wpm = parseInt(allPlayerWpm[i + 1]) || 0;
+        playerWpm[player] = wpm;
     }
     
     const leader = await r.zrevrange(`game:${gameId}:wordLines`, 0, 0);
@@ -721,30 +726,148 @@ app.post('/fetchgame', async (req, res) => {
 
     // Check if game should end (only one player alive)
     const alivePlayers = await client.zCount(`game:${gameId}:hps`, 1, '+inf');
-    const gameEnded = alivePlayers <= 1;
+    const gameActuallyEnded = alivePlayers <= 1;
+    const playerIsDead = died;
+    const allGamePlayers = await client.lRange(`game:${gameId}`, 0, -1);
 
-    // Only 1 alive player
-    if (gameEnded) {
+    // Track stats for dead players without ending the game for everyone
+    if (playerIsDead && !gameActuallyEnded) {
+        // Check if this player's stats have been recorded already
+        const playerStatsTracked = await client.get(`game:${gameId}:player:${user}:stats_tracked`);
+        
+        if (!playerStatsTracked) {
+            // Mark this player's stats as tracked
+            await client.set(`game:${gameId}:player:${user}:stats_tracked`, '1');
+            
+            // Record this player's game played count
+            // Initialize if needed
+            if (!(await client.exists(`user:${user}:games_played`))) {
+                await client.set(`user:${user}:games_played`, '0');
+            }
+            // Increment counter
+            await client.incr(`user:${user}:games_played`);
+            console.log(`Incremented games_played for dead player ${user}`);
+            
+            // Save metrics for this player outside of game context
+            try {
+                // 1. Save highest WPM from this game to user's overall history
+                const wpmHistoryKey = `game:${gameId}:${user}:wpm_history`;
+                const wpmEntries = await r.zrevrange(wpmHistoryKey, 0, 0, 'WITHSCORES');
+                let highestWpm = 0;
+                if (wpmEntries.length >= 2) {
+                    highestWpm = parseFloat(wpmEntries[1]); // Score is at index 1
+                }
+                
+                // Only add to history if they actually typed (WPM > 0)
+                if (highestWpm > 0) {
+                    // Add highest WPM to user's overall WPM history
+                    await client.zAdd(`user:${user}:wpm_history`, [{score: highestWpm, value: gameId}]);
+                    console.log(`Added highest WPM (${highestWpm}) from game ${gameId} to ${user}'s overall history`);
+                }
+                
+                // 2. Save average WPM from this game to user's average WPM history
+                const avgWpm = await client.zScore(`game:${gameId}:avgWpm`, user);
+                if (avgWpm && avgWpm > 0) {
+                    await client.rPush(`user:${user}:avg_wpm_history`, avgWpm.toString());
+                    console.log(`Added average WPM (${avgWpm}) from game ${gameId} to ${user}'s average WPM history`);
+                    
+                    // Update overall average WPM
+                    await updateOverallAverageWpm(user);
+                }
+            } catch (error) {
+                console.error(`Error saving game metrics for ${user}:`, error);
+            }
+        }
+    }
+
+    // Only 1 alive player or they died
+    if (gameActuallyEnded) {
         // Get the winner (last player standing)
         const winner = await r.zrangebyscore(`game:${gameId}:hps`, 1, '+inf', 'LIMIT', 0, 1);
-        const isWinner = winner[0] === user;
-        
-        console.log(`Game ${gameId} has ended. Winner: ${winner[0]}`);
+        const winnerUsername = winner[0];
+        const isWinner = winnerUsername === user;
+
+        // Track game completion stats - only do this once per game
+        const gameStatsTracked = await client.get(`game:${gameId}:stats_tracked`);
+        if (!gameStatsTracked) {
+            try {
+                // Mark this game as having its stats tracked to prevent duplicates
+                await client.set(`game:${gameId}:stats_tracked`, '1');
+                
+                // Update stats for all players in the game
+                for (const player of allGamePlayers) {
+                    // Initialize games_played counter if it doesn't exist
+                    if (!(await client.exists(`user:${player}:games_played`))) {
+                        await client.set(`user:${player}:games_played`, '0');
+                    }
+                    
+                    // Increment games played counter
+                    await client.incr(`user:${player}:games_played`);
+                    console.log(`Incremented games_played for ${player}`);
+                }
+                
+                // Update winner's win count
+                if (winnerUsername) {
+                    // Initialize wins counter if it doesn't exist
+                    if (!(await client.exists(`user:${winnerUsername}:wins`))) {
+                        await client.set(`user:${winnerUsername}:wins`, '0');
+                    }
+                    
+                    // Increment wins counter
+                    await client.incr(`user:${winnerUsername}:wins`);
+                    console.log(`Incremented wins for ${winnerUsername}`);
+                }
+            } catch (error) {
+                console.error(`Error tracking game stats for game ${gameId}:`, error);
+            }
+        }
+
+        // Save WPM metrics for this player if not already saved when they died
+        const playerStatsTracked = await client.get(`game:${gameId}:player:${user}:stats_tracked`);
+        if (!playerStatsTracked) {
+            // Save metrics for this player
+            await client.set(`game:${gameId}:player:${user}:stats_tracked`, '1');
+
+            // Save metrics for this player outside of game context ***
+            try {
+                // 1. Save highest WPM from this game to user's overall history
+                const wpmHistoryKey = `game:${gameId}:${user}:wpm_history`;
+                const wpmEntries = await r.zrevrange(wpmHistoryKey, 0, 0, 'WITHSCORES');
+                let highestWpm = 0;
+                if (wpmEntries.length >= 2) {
+                    highestWpm = parseFloat(wpmEntries[1]); // Score is at index 1
+                }
+                
+                // Only add to history if they actually typed (WPM > 0)
+                if (highestWpm > 0) {
+                    // Add highest WPM to user's overall WPM history
+                    await client.zAdd(`user:${user}:wpm_history`, [{score: highestWpm, value: gameId}]);
+                    console.log(`Added highest WPM (${highestWpm}) from game ${gameId} to ${user}'s overall history`);
+                }
+                
+                // 2. Save average WPM from this game to user's average WPM history
+                const avgWpm = await client.zScore(`game:${gameId}:avgWpm`, user);
+                if (avgWpm && avgWpm > 0) {
+                    await client.rPush(`user:${user}:avg_wpm_history`, avgWpm.toString());
+                    console.log(`Added average WPM (${avgWpm}) from game ${gameId} to ${user}'s average WPM history`);
+                    
+                    // Update overall average WPM
+                    await updateOverallAverageWpm(user);
+                }
+            } catch (error) {
+                console.error(`Error saving game metrics for ${user}:`, error);
+            }
+        }
         
         return res.json({ 
-            success: true,
             gameOver: true,
             winner: winner[0],
             isWinner: isWinner,
-            success: true, playerHps: playerHps, playerWordLines: playerWordLines, 
+            success: true, playerHps: playerHps, playerWordLines: playerWordLines, playerWpm: playerWpm,
             wordList: wordList, hp: hp, inZone: inZone, died: died, leader: leader[0], isLeader: isLeader
         });
-    }
-
-    //console.log("word list:" + wordList)
-    return res.json({ success: true, playerHps: playerHps, playerWordLines: playerWordLines, 
-        wordList: wordList, hp: hp, inZone: inZone, died: died, leader: leader[0], isLeader: isLeader });
-
+    } 
+    return res.json({ success: true, playerHps: playerHps, playerWordLines: playerWordLines, playerWpm: playerWpm, wordList: wordList, hp: hp, inZone: inZone, died: died, leader: leader[0], isLeader: isLeader });
 })
 
 // Updates current leader in game
@@ -796,6 +919,44 @@ app.post('/getleaderkills', async (req, res) => {
     return res.json({ success: true, kills: parseInt(kills) });
 });
 
+// Updates wpm of player
+app.post('/updatewpm', async (req, res) => {
+    const { gameId, user, currentWPM } = req.body;
+    
+    if (!gameId || !user) {
+        return res.json({ success: false, message: "Missing gameId or user" });
+    }
+    
+    try {
+        // Update the player's WPM values in Redis
+        await client.zAdd(`game:${gameId}:wpm`, [{score: currentWPM, value: user}]);
+        const timestamp = Date.now();
+        const wpmHistoryKey = `game:${gameId}:${user}:wpm_history`;
+        await client.zAdd(wpmHistoryKey, [{score: currentWPM, value: `${currentWPM}_${timestamp}`}]);
+
+        // Get all WPM values from history to calculate average
+        const wpmHistory = await r.zrange(wpmHistoryKey, 0, -1, 'WITHSCORES');
+
+        // Calculate average WPM
+        let totalWpm = 0;
+        let count = 0;
+        
+        // Process the flat array - every other element is a score
+        for (let i = 1; i < wpmHistory.length; i += 2) {
+            totalWpm += parseFloat(wpmHistory[i]);
+            count++;
+        }
+
+        const averageWpm = count > 0 ? Math.round(totalWpm / count) : 0;
+        await client.zAdd(`game:${gameId}:avgWpm`, [{score: averageWpm, value: user}]);
+        
+        return res.json({ success: true, averageWPM: averageWpm });
+    } catch (error) {
+        console.error('Error updating WPM:', error);
+        return res.json({ success: false, message: "Error updating WPM" });
+    }
+});
+
 app.post('/leavegame', async (req, res) => {
     const { gameId, user } = req.body;
     console.log("Leaving game - gameId:", gameId, "user:", user);
@@ -809,6 +970,10 @@ app.post('/leavegame', async (req, res) => {
         
         // 3. Remove user from word lines (progress) tracking sorted set
         await client.zRem(`game:${gameId}:wordLines`, user);
+
+        // Also remove WPM data
+        await client.zRem(`game:${gameId}:wpm`, user);
+        await r.del(`game:${gameId}:${user}:wpm_history`);
         
         // 4. Add a kill to leader (only if there is a leader)
         const leader = await client.get(`game:${gameId}:leader`);
@@ -894,6 +1059,46 @@ app.post('/leavequeue', async (req, res) => {
     } catch (error) {
         console.error('Error leaving queue:', error);
         return res.json({ success: false, message: "Error leaving queue" });
+    }
+});
+
+// Get all player stats in one call
+app.get('/userstats', requireLogin, async (req, res) => {
+    const username = req.session.user;
+    
+    try {
+        // Get WPM history
+        const wpmEntries = await r.zrevrange(`user:${username}:wpm_history`, 0, 0, 'WITHSCORES');
+        let highestWpm = 0;
+        if (wpmEntries.length >= 2) {
+            highestWpm = parseFloat(wpmEntries[1]); // Score is at index 1
+        }
+        
+        // Get overall average WPM
+        const overallAvgWpm = await client.get(`user:${username}:overall_avg_wpm`) || "0";
+        
+        // Get games played and wins
+        const gamesPlayed = await client.get(`user:${username}:games_played`) || "0";
+        const wins = await client.get(`user:${username}:wins`) || "0";
+        
+        // Calculate losses and win percentage
+        const gamesPlayedNum = parseInt(gamesPlayed);
+        const winsNum = parseInt(wins);
+        const losses = gamesPlayedNum - winsNum;
+        const winPercentage = gamesPlayedNum > 0 ? Math.round((winsNum / gamesPlayedNum) * 100) : 0;
+        
+        return res.json({
+            success: true,
+            highestWpm: highestWpm,
+            averageWpm: parseInt(overallAvgWpm),
+            totalGamesPlayed: gamesPlayedNum,
+            wins: winsNum,
+            losses: losses,
+            winPercentage: winPercentage
+        });
+    } catch (error) {
+        console.error('Error fetching user stats:', error);
+        return res.json({ success: false, message: "Error fetching user stats" });
     }
 });
 

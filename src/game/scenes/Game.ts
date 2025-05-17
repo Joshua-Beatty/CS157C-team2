@@ -2,6 +2,13 @@ import { EventBus } from '../EventBus';
 import { Scene } from 'phaser';
 import axios from 'axios';
 
+// Define an interface for word data
+interface WordData {
+    word: string;
+    width: number;
+    index: number;
+}
+
 export class Game extends Scene {
     // Make properties private
     private _gameId: string | null = null;
@@ -41,24 +48,21 @@ export class Game extends Scene {
     zoneText: Phaser.GameObjects.Text;
     killsText: Phaser.GameObjects.Text;
     leaderText: Phaser.GameObjects.Text;
+    wpmText: Phaser.GameObjects.Text;
 
-    // Top 10 list of players
-    // topTenText: Phaser.GameObjects.Text;
-    // firstPlayer: Phaser.GameObjects.Text;
-    // secondPlayer: Phaser.GameObjects.Text;
-    // thirdPlayer: Phaser.GameObjects.Text;
-    // fourthPlayer: Phaser.GameObjects.Text;
-    // fifthPlayer: Phaser.GameObjects.Text;
-    // sixthPlayer: Phaser.GameObjects.Text;
-    // seventhPlayer: Phaser.GameObjects.Text;
-    // eighthPlayer: Phaser.GameObjects.Text;
-    // ninthPlayer: Phaser.GameObjects.Text;
-    // tenthPlayer: Phaser.GameObjects.Text;
+    // Leaderboard text
+    leaderboardText: Phaser.GameObjects.Text;
+    leaderboardBackground: Phaser.GameObjects.Rectangle;
+    leaderboardTitle: Phaser.GameObjects.Text;
+    leaderboardEntries: Phaser.GameObjects.Text[] = [];
 
     // Accumulated word list
     wordList: string[] = [];
     // Current 10 words for user to type
     wordLine: string[] = [];
+    // For rendering each word as a separate object
+    wordTextObjects: Phaser.GameObjects.Text[] = [];
+    wordSpacing: number = 20; // Base spacing between words
     // Current word the user is on in the line
     currentWordIndex = 0;
     // Current line the user is on
@@ -75,6 +79,12 @@ export class Game extends Scene {
     // To store status of other players during game
     playerHps: Record<string, number> | null = null;
     playerWordLines: Record<string, number> | null = null;
+    playerWpm: Record<string, number> | null = null;
+
+    // WPM tracking
+    private lineStartTime: number = 0;
+    private currentWPM: number = 0;
+    private averageWPM: number = 0;
 
     // Fetch user info upon game start
     async getUserInfo() {
@@ -178,7 +188,7 @@ export class Game extends Scene {
         EventBus.emit('current-scene-ready', this);
 
         // Create wordsText to display current words to type
-        this.wordsText = this.add.text(512, 200, '', {
+        this.wordsText = this.add.text(512, 300, '', {
             fontFamily: '"Press Start 2P"', 
             fontSize: '18px', 
             color: '#ffffff',
@@ -187,6 +197,8 @@ export class Game extends Scene {
             align: 'center',
             wordWrap: {width: 800, useAdvancedWrap: true }
         }).setOrigin(0.5).setDepth(100);
+        this.wordsText.setStyle({ fontSize: '18px' }); // Reset the style to ensure HTML works
+        this.wordsText.setStyle({ fontSize: '18px', color: '#ffffff' });
 
         // Create inputText to display this player's current input
         this.inputText = this.add.text(512, 400, '', {
@@ -209,7 +221,7 @@ export class Game extends Scene {
         }).setDepth(100);
         
         // Create zone status display (All players are outside of the zone at game start)
-        this.zoneText = this.add.text(100, 130, 'Zone: Safe', {
+        this.zoneText = this.add.text(100, 80, 'Zone: Safe', {
             fontFamily: '"Press Start 2P"', 
             fontSize: '16px', 
             color: '#00ff00',
@@ -217,14 +229,15 @@ export class Game extends Scene {
             strokeThickness: 6
         }).setDepth(100);
 
-        // Create top 10 players display
-        // this.topTenText = this.add.text(100, 90, 'Current Top 10', {
-        //     fontFamily: '"Press Start 2P"', 
-        //     fontSize: '16px', 
-        //     color: '#00ff00',
-        //     stroke: '#000000', 
-        //     strokeThickness: 6
-        // }).setDepth(100);
+        // WPM display
+        this.wpmText = this.add.text(100, 110, 'WPM: 0 | Avg: 0', {
+            fontFamily: '"Press Start 2P"', 
+            fontSize: '16px', 
+            color: '#ffffff',
+            stroke: '#000000', 
+            strokeThickness: 6,
+            align: 'center'
+        }).setDepth(100);
         
         // Create kills display
         this.killsText = this.add.text(800, 50, 'Kills: 0', {
@@ -242,6 +255,31 @@ export class Game extends Scene {
             color: '#ffff00',
             stroke: '#000000', 
             strokeThickness: 6
+        }).setDepth(100);
+
+        // Create leaderboard with background and title
+        this.leaderboardBackground = this.add.rectangle(890, 650, 275, 300, 0x000000)
+        .setAlpha(0.7)
+        .setOrigin(0.5, 0.5)
+        .setStrokeStyle(2, 0xFFFFFF)
+        .setDepth(90);
+
+        this.leaderboardTitle = this.add.text(890, 520, 'LEADERBOARD', {
+            fontFamily: '"Press Start 2P"', 
+            fontSize: '14px', 
+            color: '#ffffff',
+            stroke: '#000000', 
+            strokeThickness: 4,
+            align: 'center'
+        }).setOrigin(0.5, 0).setDepth(100);
+
+        this.leaderboardText = this.add.text(785, 550, '', {
+            fontFamily: '"Press Start 2P"', 
+            fontSize: '10px', 
+            color: '#ffffff',
+            stroke: '#000000', 
+            strokeThickness: 3,
+            align: 'left'
         }).setDepth(100);
 
         // Access keyboard input
@@ -297,6 +335,222 @@ export class Game extends Scene {
                 yoyo: false,
                 delay: Phaser.Math.Between(0, 3000)
             });
+        }
+    }
+
+    // Updates leaderboard
+    updateLeaderboard() {
+        // Check if necessary data exists and scene is active
+        if (!this.playerHps || !this.playerWordLines || !this.scene.isActive()) {
+            return;
+        }
+        
+        // Clear any existing player text objects
+        if (this.leaderboardEntries) {
+            this.leaderboardEntries.forEach(entry => {
+                if (entry && entry.scene) {
+                    entry.destroy();
+                }
+            });
+            this.leaderboardEntries = [];
+        }
+        
+        // If we have the original leaderboard text, keep it blank instead of destroying
+        if (this.leaderboardText && this.leaderboardText.scene) {
+            this.leaderboardText.setText('');
+        }
+        
+        // Combine player data
+        const playerData = [];
+        
+        // Build array of players with their data
+        for (const player in this.playerHps) {
+            if (this.playerWordLines[player] !== undefined) {
+                playerData.push({
+                    name: player,
+                    health: this.playerHps[player],
+                    line: this.playerWordLines[player],
+                    wpm: this.playerWpm && this.playerWpm[player] ? this.playerWpm[player] : 0
+                });
+            }
+        }
+        
+        // Sort by line number (descending) then by health (descending)
+        playerData.sort((a, b) => {
+            if (b.line !== a.line) {
+                return b.line - a.line;
+            }
+            return b.health - a.health;
+        });
+        
+        // Limit to top 10 players
+        const topPlayers = playerData.slice(0, 10);
+        
+        // Define leaderboard position and layout
+        const startX = 775;
+        const startY = 550;
+        const lineHeight = 20; // Space between lines
+        
+        // Create individual text objects for each player
+        topPlayers.forEach((player, index) => {
+            // Truncate name if too long (max 6 chars)
+            const displayName = player.name.length > 6 ? 
+                player.name.substring(0, 5) + '.' : 
+                player.name.padEnd(6, ' '); // Pad with spaces for alignment
+            
+            // Check if this is the current player
+            const isCurrentPlayer = player.name === this._userId;
+            
+            // Create the player entry text
+            const entryText = `${index + 1}. ${displayName} ♥ ${player.health} ★ ${player.line} ⚡ ${player.wpm || 0}`;
+            
+            // Set color based on whether this is the current player
+            const textColor = isCurrentPlayer ? '#ff8800' : '#ffffff'; // Orange for current player
+            
+            // Create text object for this player
+            const playerText = this.add.text(startX, startY + (index * lineHeight), entryText, {
+                fontFamily: '"Press Start 2P"', 
+                fontSize: '10px', 
+                color: textColor,
+                stroke: '#000000', 
+                strokeThickness: 3,
+                align: 'left'
+            }).setDepth(100);
+            
+            // Store reference to player text
+            this.leaderboardEntries.push(playerText);
+        });
+    }
+
+    // Create and position individual word text objects
+    private renderWordObjects() {
+        // Clear existing word objects if any
+        this.wordTextObjects.forEach(textObj => textObj.destroy());
+        this.wordTextObjects = [];
+
+        if (this.wordLine.length > 0 && this.currentWordIndex === 0) {
+            // Only start timer if this is a new line (currentWordIndex is 0)
+            this.lineStartTime = Date.now();
+        }
+        
+        if (!this.wordLine || this.wordLine.length === 0) {
+            return;
+        }
+        
+        // Screen dimensions
+        const screenWidth = this.cameras.main.width;
+        const centerX = screenWidth / 2;
+        const baseY = 300; // Base Y position for the first line
+        const lineHeight = 40; // Vertical space between lines
+        
+        // Maximum width to allow for text (with some margin)
+        const maxLineWidth = screenWidth - 100; // 50px margin on each side
+        
+        // Array to hold words for each line
+        const lines: WordData[][] = [];
+        let currentLine: WordData[] = [];
+        let currentLineWidth = 0;
+        
+        // Create temporary text objects to measure word widths
+        const wordWidths: WordData[] = [];
+        for (let i = 0; i < this.wordLine.length; i++) {
+            const tempText = this.add.text(0, 0, this.wordLine[i], {
+                fontFamily: '"Press Start 2P"',
+                fontSize: '18px'
+            });
+            wordWidths.push({
+                word: this.wordLine[i],
+                width: tempText.width,
+                index: i
+            });
+            tempText.destroy(); // Clean up temp text
+        }
+        
+        // Distribute words into lines
+        for (let i = 0; i < wordWidths.length; i++) {
+            const wordData = wordWidths[i];
+            
+            // If adding this word would exceed line width and it's not the first word
+            // in the line, start a new line
+            if (currentLineWidth + wordData.width + (currentLine.length * this.wordSpacing) > maxLineWidth && currentLine.length > 0) {
+                lines.push(currentLine);
+                currentLine = [wordData];
+                currentLineWidth = wordData.width;
+            } else {
+                currentLine.push(wordData);
+                currentLineWidth += wordData.width;
+            }
+        }
+        
+        // Add the last line if it has any words
+        if (currentLine.length > 0) {
+            lines.push(currentLine);
+        }
+        
+        // Now render each line of words
+        for (let lineIndex = 0; lineIndex < lines.length; lineIndex++) {
+            const line = lines[lineIndex];
+            const posY = baseY + (lineIndex * lineHeight);
+            
+            // Calculate total line width including spacing
+            let lineWidth = 0;
+            for (const wordData of line) {
+                lineWidth += wordData.width;
+            }
+            lineWidth += (line.length - 1) * this.wordSpacing;
+            
+            // Starting X position for this line (centered)
+            let currentX = centerX - (lineWidth / 2);
+            
+            // Create and position each word in this line
+            for (const wordData of line) {
+                // Determine color based on progress
+                let color = '#ffffff'; // Default white
+                if (wordData.index < this.currentWordIndex) {
+                    color = '#00ff00'; // Completed words in green
+                } else if (wordData.index === this.currentWordIndex) {
+                    color = '#ffff00'; // Current word in yellow/gold
+                }
+                
+                // Create text object for this word
+                const wordText = this.add.text(currentX, posY, wordData.word, {
+                    fontFamily: '"Press Start 2P"',
+                    fontSize: '18px',
+                    color: color,
+                    stroke: '#000000',
+                    strokeThickness: 6
+                }).setOrigin(0, 0.5).setDepth(100);
+                
+                // Add to our array of word objects
+                this.wordTextObjects.push(wordText);
+                
+                // Increment X position for next word
+                currentX += wordData.width + this.wordSpacing;
+            }
+        }
+    }
+
+    // Add this method to update the color of word objects based on progress
+    private updateWordColors() {
+        if (!this.wordTextObjects || this.wordTextObjects.length === 0) {
+            return;
+        }
+        
+        // Track which word object corresponds to which word in the wordLine
+        let wordIndex = 0;
+        
+        for (let i = 0; i < this.wordTextObjects.length; i++) {
+            // Get the corresponding index in the wordLine
+            if (wordIndex < this.wordLine.length) {
+                if (wordIndex < this.currentWordIndex) {
+                    this.wordTextObjects[i].setColor('#00ff00'); // Completed
+                } else if (wordIndex === this.currentWordIndex) {
+                    this.wordTextObjects[i].setColor('#ffff00'); // Current
+                } else {
+                    this.wordTextObjects[i].setColor('#ffffff'); // Upcoming
+                }
+                wordIndex++;
+            }
         }
     }
 
@@ -478,6 +732,7 @@ export class Game extends Scene {
             // Update fields
             this.playerHps = response.data.playerHps;
             this.playerWordLines = response.data.playerWordLines;
+            this.playerWpm = response.data.playerWpm;
             this.isLeader = response.data.isLeader;
             if (this.isLeader) {
                 if (this.leaderText && this.leaderText.scene) {
@@ -493,14 +748,18 @@ export class Game extends Scene {
             this.inZone = response.data.inZone;
             this.died = response.data.died;
 
+            this.updateLeaderboard();
+
             // If we need to fetch a new line of words
             if (this.wordLine.length === 0) {
                 this.wordLine = await this.fetchWordLine(this.currentLineIndex);
             }
             
             // Update display
-            if (this.wordsText && this.wordsText.scene) {
-                this.wordsText.setText(this.wordLine.join(' '));
+
+            // Update or create word objects
+            if (this.scene.isActive()) {
+                this.renderWordObjects();
             }
             
             if (this.healthText && this.healthText.scene) {
@@ -527,6 +786,13 @@ export class Game extends Scene {
     }
 
     async handleKeyPress(key: string) {
+        if (this.currentWordIndex === 0 && this.wordsInput.length === 0 && key.length === 1 && /^[a-zA-Z]$/.test(key)) {
+            // This is the first keystroke of a new line
+            if (this.lineStartTime === 0) {
+                this.lineStartTime = Date.now();
+            }
+        }
+
         if (this.currentWordIndex < this.wordLine.length) {
             if (key === 'Backspace') {
                 // Remove most recent key if user presses backspace
@@ -543,9 +809,10 @@ export class Game extends Scene {
     
                 // Word is correct
                 if (currentWord === this.wordLine[this.currentWordIndex]) {
-                    this.wordsInput += key;
+                    this.wordsInput = ' ';
                     this.currentWordIndex++;
-                    
+                    this.updateWordColors();
+
                     // Add a flash effect for correct word
                     this.cameras.main.flash(100, 0, 255, 0, true);
 
@@ -577,6 +844,28 @@ export class Game extends Scene {
 
     // When the user finishes typing all words in the current line
     async goToNextLine() {
+
+        if (this.lineStartTime > 0) {
+            // Calculate elapsed time in minutes
+            const elapsedTimeMs = Date.now() - this.lineStartTime;
+            const elapsedTimeMinutes = elapsedTimeMs / 60000; // Convert to minutes
+            
+            // Calculate WPM (10 words per line)
+            this.currentWPM = Math.round(10 / elapsedTimeMinutes);
+
+            // Send WPM data to the backend and get average in response
+            await this.updateWPM();
+
+            
+            // Update WPM display
+            if (this.wpmText && this.wpmText.scene) {
+                this.wpmText.setText(`WPM: ${this.currentWPM} | Avg WPM: ${this.averageWPM}`);
+            }
+            
+            // Reset timer for next line
+            this.lineStartTime = 0;
+        }
+
         // Increment current line the user is on
         this.currentLineIndex++;
         // Reset current word index of the user
@@ -592,15 +881,36 @@ export class Game extends Scene {
         // Fetch the next line of words from the backend
         this.wordLine = await this.fetchWordLine(this.currentLineIndex);
         
-        // Update display with new words
-        if (this.wordsText && this.wordsText.scene) {
-            this.wordsText.setText(this.wordLine.join(' '));
+        // Render the new word objects
+        if (this.scene.isActive()) {
+            this.renderWordObjects();
         }
 
         // If player is leading, update leader
         if (this.isLeader) {
             console.log(`I AM THE LEADER - generating new words at line ${this.currentLineIndex}`);
             await this.updateLeaderStatus();
+        }
+    }
+
+    // Updates WPM
+    async updateWPM() {
+        try {
+            const response = await axios.post("http://localhost:3000/updatewpm", {
+                gameId: this._gameId,
+                user: this._userId,
+                currentWPM: this.currentWPM
+            }, {
+                withCredentials: true
+            });
+            
+            if (!response.data.success) {
+                console.error("Failed to update WPM:", response.data.message);
+            } else {
+                this.averageWPM = response.data.averageWPM;
+            }
+        } catch (error) {
+            console.error("Error updating WPM:", error);
         }
     }
 
@@ -753,6 +1063,14 @@ export class Game extends Scene {
         // Reset the static game ID variable
         Game.currentGameId = null;
         this._gameId = null;        // Also reset instance variable
+
+        // Clean up word text objects
+        this.wordTextObjects.forEach(textObj => {
+            if (textObj && textObj.scene) {
+                textObj.destroy();
+            }
+        });
+        this.wordTextObjects = [];
         
         // Remove all event listeners to prevent callbacks after scene is stopped
         this.events.removeAllListeners();
