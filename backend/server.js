@@ -724,6 +724,14 @@ app.post('/fetchgame', async (req, res) => {
     
     // Check if user is in zone
     let inZone = false;
+
+    // Check if user died (HP = 0)
+    let died = false;
+    const hp = await client.zScore(`game:${gameId}:hps`, user);
+    if (hp == '0') {
+        died = true;
+    }
+
     if (lineIndex <= zoneIndex) {
         inZone = true;
         // Check if user is 1 line deep into zone (instakill)
@@ -757,12 +765,6 @@ app.post('/fetchgame', async (req, res) => {
             }
             await client.zAdd(`game:${gameId}:hps`, [{score:0, value:user}])
         }
-    }
-    // Check if user died (HP = 0)
-    let died = false;
-    const hp = await client.zScore(`game:${gameId}:hps`, user);
-    if (hp == '0') {
-        died = true;
     }
 
     // Check if game should end (only one player alive)
