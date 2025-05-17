@@ -1,6 +1,7 @@
 import { useRouter } from 'next/router';
 import { useEffect, useState} from 'react';
 import axios from 'axios';
+import { kill } from 'process';
 
 function Profile() {
     const router = useRouter();
@@ -71,11 +72,13 @@ function Profile() {
             const response = await axios.get('http://localhost:3000/userstats', { withCredentials: true });
             console.log(response.data);
             if (response.data.success) {
-                setWins(response.data.winsNum);
+                setWins(response.data.wins);
                 setGamesPlayed(response.data.totalGamesPlayed);
                 setAvgWPM(response.data.averageWpm);
                 setHighestWPM(response.data.highestWpm);
                 setWinPercentage(`${response.data.winPercentage}%`);
+                setKills(response.data.totalKills || 0);
+                setHighestKills(response.data.highestKills || 0);
             }
         } catch (error) {
             console.error('Error fetching user stats:', error);
@@ -185,8 +188,8 @@ function Profile() {
                             <p><TetrisPiece type="i" /> Wins: {wins}</p>
                             <p><TetrisPiece type="j" /> Win Percentage: {winPercentage}</p>
                             <p><TetrisPiece type="l" /> Games Played: {gamesPlayed}</p>
-                            <p><TetrisPiece type="o" /> Kills: 0</p>
-                            <p><TetrisPiece type="s" /> Highest Kill Game: 0</p>
+                            <p><TetrisPiece type="o" /> Kills: {kills}</p>
+                            <p><TetrisPiece type="s" /> Highest Kill Game: {highestKills}</p>
                             <p><TetrisPiece type="t" /> Average WPM: {avgWPM}</p>
                             <p><TetrisPiece type="z" /> Highest WPM: {highestWPM}</p>
                         </div>

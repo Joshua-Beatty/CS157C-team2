@@ -1063,6 +1063,7 @@ export class Game extends Scene {
         // Reset the static game ID variable
         Game.currentGameId = null;
         this._gameId = null;        // Also reset instance variable
+        this.kills = 0;
 
         // Clean up word text objects
         this.wordTextObjects.forEach(textObj => {

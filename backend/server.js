@@ -800,6 +800,27 @@ app.post('/fetchgame', async (req, res) => {
                     if (!(await client.exists(`user:${player}:games_played`))) {
                         await client.set(`user:${player}:games_played`, '0');
                     }
+
+                    // Add kill tracking - Get kills in this game for the player
+                    const playerKills = parseInt(await client.get(`game:${gameId}:${player}:kills`) || '0');
+                    
+                    // Update total kills (initialize if doesn't exist)
+                    if (!(await client.exists(`user:${player}:total_kills`))) {
+                        await client.set(`user:${player}:total_kills`, '0');
+                    }
+                    
+                    // Add this game's kills to the total
+                    if (playerKills > 0) {
+                        await client.incrBy(`user:${player}:total_kills`, playerKills);
+                        console.log(`Added ${playerKills} kills to ${player}'s total kills`);
+                        
+                        // Track highest kill game
+                        const highestKills = parseInt(await client.get(`user:${player}:highest_kills`) || '0');
+                        if (playerKills > highestKills) {
+                            await client.set(`user:${player}:highest_kills`, playerKills.toString());
+                            console.log(`Updated highest kills for ${player} to ${playerKills}`);
+                        }
+                    }
                     
                     // Increment games played counter
                     await client.incr(`user:${player}:games_played`);
@@ -989,6 +1010,7 @@ app.post('/leavegame', async (req, res) => {
                     } else {
                         await client.incr(killsKey);
                     }
+                    console.log(`Added kill for ${leader} when ${user} left the game`);
                 } catch (err) {
                     console.error("Redis error with key", killsKey, err);
                     // Continue execution even if this fails
@@ -1086,6 +1108,10 @@ app.get('/userstats', requireLogin, async (req, res) => {
         const winsNum = parseInt(wins);
         const losses = gamesPlayedNum - winsNum;
         const winPercentage = gamesPlayedNum > 0 ? Math.round((winsNum / gamesPlayedNum) * 100) : 0;
+
+        // Get kills statistics
+        const totalKills = await client.get(`user:${username}:total_kills`) || "0";
+        const highestKills = await client.get(`user:${username}:highest_kills`) || "0";
         
         return res.json({
             success: true,
@@ -1094,7 +1120,9 @@ app.get('/userstats', requireLogin, async (req, res) => {
             totalGamesPlayed: gamesPlayedNum,
             wins: winsNum,
             losses: losses,
-            winPercentage: winPercentage
+            winPercentage: winPercentage,
+            totalKills: parseInt(totalKills),
+            highestKills: parseInt(highestKills)
         });
     } catch (error) {
         console.error('Error fetching user stats:', error);
