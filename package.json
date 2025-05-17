@@ -22,8 +22,14 @@
         "typescript"
     ],
     "scripts": {
-        "dev": "node log.js dev & next dev -p 8080",
-        "build": "node log.js build & next build",
+        "start": "run-p dev dev-backend",
+        "dev-backend": "nodemon backend/server.js --watch backend",
+        "dev": "run-p dev-log dev-next",
+        "dev-next": "next dev -p 8080",
+        "dev-log": "node log.js dev",
+        "build": "run-p build-log build-next",
+        "build-log": "node log.js build & next build",
+        "build-next": "node log.js build & next build",
         "dev-nolog": "next dev -p 8080",
         "build-nolog": "next build"
     },
@@ -35,6 +41,7 @@
         "ioredis": "^5.6.1",
         "next": "15.3.1",
         "nodemon": "^3.1.10",
+        "npm-run-all": "^4.1.5",
         "phaser": "^3.88.2",
         "react": "19.0.0",
         "react-dom": "19.0.0",
