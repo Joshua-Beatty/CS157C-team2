@@ -1101,17 +1101,6 @@ app.post('/leavegame', async (req, res) => {
                 // Continue execution even if this fails
             }
         }
-        
-        // 5. Check if this was the leader who left
-        if (user === leader) {
-            // Find new leader (player with highest word line score)
-            const players = await r.zrevrange(`game:${gameId}:wordLines`, 0, 0);
-            if (players.length > 0) {
-                const newLeader = players[0];
-                await client.set(`game:${gameId}:leader`, newLeader);
-                console.log(`New leader set to ${newLeader} after ${user} left`);
-            }
-        }
 
         // If there's no leader yet (early game), award a kill to ALL remaining players
         else if (!leader) {
@@ -1139,6 +1128,17 @@ app.post('/leavegame', async (req, res) => {
                 } catch (killError) {
                     console.error(`Error updating kills for player ${player}:`, killError);
                 }
+            }
+        }
+        
+        // 5. Check if this was the leader who left
+        if (user === leader) {
+            // Find new leader (player with highest word line score)
+            const players = await r.zrevrange(`game:${gameId}:wordLines`, 0, 0);
+            if (players.length > 0) {
+                const newLeader = players[0];
+                await client.set(`game:${gameId}:leader`, newLeader);
+                console.log(`New leader set to ${newLeader} after ${user} left`);
             }
         }
         
