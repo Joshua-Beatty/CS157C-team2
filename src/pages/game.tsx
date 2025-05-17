@@ -178,6 +178,46 @@ function GameController() {
         }
     }, [inGame]);
 
+
+    // Use effect to handle tab close
+    useEffect(() => {
+        const handleUnload = () => {
+            if (!phaserRef.current) return;
+
+            const gameInfo = phaserRef.current.getCurrentGameInfo();
+
+            if (!inGame && gameInfo.gameId && gameInfo.userId) {
+                const info = JSON.stringify({
+                    queueId: gameInfo.gameId,
+                    user: gameInfo.userId
+                });
+
+                // Need to use navigator for unloading
+                navigator.sendBeacon(
+                    'http://localhost:3000/leavequeue',
+                    new Blob([info], { type: 'application/json'})
+                );
+            }
+            else if (inGame && gameInfo.gameId && gameInfo.userId) {
+                const info = JSON.stringify({
+                    gameId: gameInfo.gameId,
+                    user: gameInfo.userId
+                });
+
+                navigator.sendBeacon(
+                    'http://localhost:3000/leavegame',
+                    new Blob([info], { type: 'application/json'})
+                );
+            }
+        };
+
+        // Listen for tab close
+        window.addEventListener('unload', handleUnload);
+
+        return () => {
+            window.removeEventListener('unload', handleUnload);
+        };
+    }, [inGame]);
     
 
     return (
