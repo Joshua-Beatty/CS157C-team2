@@ -1112,6 +1112,35 @@ app.post('/leavegame', async (req, res) => {
                 console.log(`New leader set to ${newLeader} after ${user} left`);
             }
         }
+
+        // If there's no leader yet (early game), award a kill to ALL remaining players
+        else if (!leader) {
+            console.log(`No leader established yet. Awarding kill to all remaining players for ${user} leaving`);
+            
+            // Loop through all players and award a kill to each (except the leaving player)
+            for (const player of allPlayers) {
+                // Skip the player who's leaving
+                if (player === user) continue;
+                
+                try {
+                    // Check if player's kills key exists
+                    const killsExist = await client.exists(`game:${gameId}:${player}:kills`);
+                    
+                    if (!killsExist) {
+                        // First kill for this player
+                        await client.set(`game:${gameId}:${player}:kills`, '1');
+                        console.log(`First kill recorded for ${player} in game ${gameId} when ${user} left (early game)`);
+                    } else {
+                        // Increment existing kills counter
+                        await client.incr(`game:${gameId}:${player}:kills`);
+                        const newKills = await client.get(`game:${gameId}:${player}:kills`);
+                        console.log(`Player ${player} now has ${newKills} kills in game ${gameId} after ${user} left (early game)`);
+                    }
+                } catch (killError) {
+                    console.error(`Error updating kills for player ${player}:`, killError);
+                }
+            }
+        }
         
         return res.json({ success: true, message: "Successfully left the game" });
     } catch (error) {
