@@ -647,12 +647,26 @@ app.post('/updategame', async (req, res) => {
         if (newHp == 0) {
             // Add a kill to leader
             const leader = await client.get(`game:${gameId}:leader`);
-            const kills = await client.get(`game:${gameId}:${leader}:kills`);
-            if (kills == null) {
-                await client.set(`game:${gameId}:${leader}:kills`, 1);
-            }
-            else {
-                await client.incr(`game:${gameId}:${leader}:kills`);
+            
+            // Only proceed if leader exists and is not the player who died
+            if (leader && leader !== user) {
+                try {
+                    // Get current kill count or start at 0
+                    const killsExist = await client.exists(`game:${gameId}:${leader}:kills`);
+                    
+                    if (!killsExist) {
+                        // First kill for this leader
+                        await client.set(`game:${gameId}:${leader}:kills`, '1');
+                        console.log(`First kill recorded for ${leader} in game ${gameId}`);
+                    } else {
+                        // Increment existing kills counter
+                        await client.incr(`game:${gameId}:${leader}:kills`);
+                        const newKills = await client.get(`game:${gameId}:${leader}:kills`);
+                        console.log(`Leader ${leader} now has ${newKills} kills in game ${gameId}`);
+                    }
+                } catch (killError) {
+                    console.error(`Error updating kills for leader ${leader}:`, killError);
+                }
             }
         }
     }
@@ -801,8 +815,28 @@ app.post('/fetchgame', async (req, res) => {
                         await client.set(`user:${player}:games_played`, '0');
                     }
 
-                    // Add kill tracking - Get kills in this game for the player
-                    const playerKills = parseInt(await client.get(`game:${gameId}:${player}:kills`) || '0');
+                    // This retrieves kills directly using a single atomic operation
+                    let playerKills = 0;
+                    try {
+                        // Using exists first to prevent trying to convert null to number
+                        const killsExist = await client.exists(`game:${gameId}:${player}:kills`);
+                        if (killsExist) {
+                            const killsStr = await client.get(`game:${gameId}:${player}:kills`);
+                            playerKills = parseInt(killsStr, 10);
+                            
+                            // Validate that we got a proper number
+                            if (isNaN(playerKills)) {
+                                console.error(`Invalid kill count for player ${player}: ${killsStr}`);
+                                playerKills = 0;
+                            }
+                        }
+                    } catch (killError) {
+                        console.error(`Error retrieving kills for ${player}:`, killError);
+                        // Continue with zero kills if there was an error
+                    }
+                    
+                    // Debug logging to trace kill counts
+                    console.log(`Player ${player} had ${playerKills} kills in game ${gameId}`);
                     
                     // Update total kills (initialize if doesn't exist)
                     if (!(await client.exists(`user:${player}:total_kills`))) {
@@ -935,9 +969,27 @@ app.post('/updateleader', async (req, res) => {
 app.post('/getleaderkills', async (req, res) => {
     const { gameId, leader } = req.body;
     
-    const kills = await client.get(`game:${gameId}:${leader}:kills`) || 0;
-    
-    return res.json({ success: true, kills: parseInt(kills) });
+    try {
+        // First check if the key exists to avoid parsing null
+        const killsExist = await client.exists(`game:${gameId}:${leader}:kills`);
+        
+        let kills = 0;
+        if (killsExist) {
+            const killsStr = await client.get(`game:${gameId}:${leader}:kills`);
+            kills = parseInt(killsStr, 10);
+            
+            // Validate that we got a proper number
+            if (isNaN(kills)) {
+                console.error(`Invalid kill count for leader ${leader}: ${killsStr}`);
+                kills = 0;
+            }
+        }
+        
+        return res.json({ success: true, kills: kills });
+    } catch (error) {
+        console.error(`Error getting kills for ${leader}:`, error);
+        return res.json({ success: true, kills: 0 });  // Return 0 on error as a fallback
+    }
 });
 
 // Updates wpm of player
@@ -998,23 +1050,24 @@ app.post('/leavegame', async (req, res) => {
         
         // 4. Add a kill to leader (only if there is a leader)
         const leader = await client.get(`game:${gameId}:leader`);
-        if (leader) {
-            // Make sure to only proceed if leader is a valid string
-            if (typeof leader === 'string' && leader.trim() !== '') {
-                const killsKey = `game:${gameId}:${leader}:kills`;
-                console.log("Using kills key:", killsKey); // Add this log
-                try {
-                    const kills = await client.get(killsKey);
-                    if (kills == null) {
-                        await client.set(killsKey, 1);
-                    } else {
-                        await client.incr(killsKey);
-                    }
-                    console.log(`Added kill for ${leader} when ${user} left the game`);
-                } catch (err) {
-                    console.error("Redis error with key", killsKey, err);
-                    // Continue execution even if this fails
+        if (leader && leader !== user) {  // Make sure leader exists and is not the same as the leaving player
+            try {
+                // Check if leader kills key exists
+                const killsExist = await client.exists(`game:${gameId}:${leader}:kills`);
+                
+                if (!killsExist) {
+                    // First kill for this leader
+                    await client.set(`game:${gameId}:${leader}:kills`, '1');
+                    console.log(`First kill recorded for ${leader} in game ${gameId} when ${user} left`);
+                } else {
+                    // Increment existing kills counter
+                    await client.incr(`game:${gameId}:${leader}:kills`);
+                    const newKills = await client.get(`game:${gameId}:${leader}:kills`);
+                    console.log(`Leader ${leader} now has ${newKills} kills in game ${gameId} after ${user} left`);
                 }
+            } catch (killError) {
+                console.error(`Error updating kills for leader ${leader}:`, killError);
+                // Continue execution even if this fails
             }
         }
         
