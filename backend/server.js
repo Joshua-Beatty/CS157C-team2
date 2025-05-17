@@ -1068,7 +1068,55 @@ app.post('/leavegame', async (req, res) => {
     try {
         //Get all players before removing the leaving player
         const allPlayers = await client.lRange(`game:${gameId}`, 0, -1);
+
+        // Check if the leaving player's stats have already been tracked
+        const playerStatsTracked = await client.get(`game:${gameId}:player:${user}:stats_tracked`);
         
+        // If stats haven't been tracked yet, track them now for the leaving player
+        if (!playerStatsTracked) {
+            // Mark this player's stats as tracked
+            await client.set(`game:${gameId}:player:${user}:stats_tracked`, '1');
+            
+            // Record this player's game played count (counts as a forfeit/loss)
+            // Initialize if needed
+            if (!(await client.exists(`user:${user}:games_played`))) {
+                await client.set(`user:${user}:games_played`, '0');
+            }
+            // Increment games played counter
+            await client.incr(`user:${user}:games_played`);
+            console.log(`Incremented games_played for ${user} who left the game (forfeit)`);
+            
+            // Save WPM metrics for this player
+            try {
+                // 1. Save highest WPM from this game to user's overall history
+                const wpmHistoryKey = `game:${gameId}:${user}:wpm_history`;
+                const wpmEntries = await r.zrevrange(wpmHistoryKey, 0, 0, 'WITHSCORES');
+                let highestWpm = 0;
+                if (wpmEntries.length >= 2) {
+                    highestWpm = parseFloat(wpmEntries[1]); // Score is at index 1
+                }
+                
+                // Only add to history if they actually typed (WPM > 0)
+                if (highestWpm > 0) {
+                    // Add highest WPM to user's overall WPM history
+                    await client.zAdd(`user:${user}:wpm_history`, [{score: highestWpm, value: gameId}]);
+                    console.log(`Added highest WPM (${highestWpm}) from game ${gameId} to ${user}'s overall history`);
+                }
+                
+                // 2. Save average WPM from this game to user's average WPM history
+                const avgWpm = await client.zScore(`game:${gameId}:avgWpm`, user);
+                if (avgWpm && avgWpm > 0) {
+                    await client.rPush(`user:${user}:avg_wpm_history`, avgWpm.toString());
+                    console.log(`Added average WPM (${avgWpm}) from game ${gameId} to ${user}'s average WPM history`);
+                    
+                    // Update overall average WPM
+                    await updateOverallAverageWpm(user);
+                }
+            } catch (error) {
+                console.error(`Error saving game metrics for ${user} who left the game:`, error);
+            }
+        }
+
         // 1. Remove user from the main players list
         await client.lRem(`game:${gameId}`, 0, user);
         
