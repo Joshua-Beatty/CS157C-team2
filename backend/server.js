@@ -728,7 +728,6 @@ app.post('/fetchgame', async (req, res) => {
         inZone = true;
         // Check if user is 1 line deep into zone (instakill)
         if ((zoneIndex - lineIndex) == 1) {
-            await client.zAdd(`game:${gameId}:hps`, [{score:0, value:user}])
             // If this is a new instakill (player wasn't dead before), add a kill to the leader
             if (!died) {
                 const leader = await client.get(`game:${gameId}:leader`);
@@ -756,6 +755,7 @@ app.post('/fetchgame', async (req, res) => {
                     }
                 }
             }
+            await client.zAdd(`game:${gameId}:hps`, [{score:0, value:user}])
         }
     }
     // Check if user died (HP = 0)
