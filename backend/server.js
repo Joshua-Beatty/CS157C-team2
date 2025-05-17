@@ -796,6 +796,7 @@ app.post('/getleaderkills', async (req, res) => {
     return res.json({ success: true, kills: parseInt(kills) });
 });
 
+// When user leaves game by clicking button or closing tab
 app.post('/leavegame', async (req, res) => {
     const { gameId, user } = req.body;
     console.log("Leaving game - gameId:", gameId, "user:", user);
@@ -851,7 +852,7 @@ app.post('/leavegame', async (req, res) => {
     }
 });
 
-// Add this to your server.js file
+// When user leaves queue by clicking button or closing tab
 app.post('/leavequeue', async (req, res) => {
     const { queueId, user } = req.body;
     

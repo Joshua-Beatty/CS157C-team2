@@ -181,11 +181,6 @@ export class Queue extends Scene {
             });
         }
     }
-    
-    // Once game starts, change scene to Game
-    changeScene() {
-        this.scene.start('Game');
-    }
 
     // Enter queue when Enter Queue button is pressed
     async enterQueue() {
@@ -212,7 +207,7 @@ export class Queue extends Scene {
                 this.playersReadyText.setText(`Players ready: ${readySize}/${queueSize}`);
 
                 // Information for game start
-                this.gameStartText.setText('Game starts when all are ready');
+                this.gameStartText.setText('Game starts when all are ready \nand there are at least 2 players');
 
                 // Start updating queue status periodically
                 await this.updateQueueStatusWhile();
@@ -270,9 +265,13 @@ export class Queue extends Scene {
                     const readySize = response.data.readySize;
                     this.playersReadyText.setText(`Players ready: ${readySize}/${queueSize}`);
 
-                    // All players in queue are ready, so start game
-                    if (readySize == queueSize) {
+                    // If all players in queue are ready,
+                    // AND at least 2 players, then start game
+                    if (readySize == queueSize && readySize >= 2) {
                         this.gameStarted = true;
+                    }
+                    else if (readySize == queueSize) {
+                        
                     }
                 }
             }
@@ -325,4 +324,5 @@ export class Queue extends Scene {
             console.error(error);
         }
     }
+
 }
