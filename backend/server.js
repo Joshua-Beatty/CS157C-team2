@@ -1066,6 +1066,9 @@ app.post('/leavegame', async (req, res) => {
     console.log("Leaving game - gameId:", gameId, "user:", user);
 
     try {
+        //Get all players before removing the leaving player
+        const allPlayers = await client.lRange(`game:${gameId}`, 0, -1);
+        
         // 1. Remove user from the main players list
         await client.lRem(`game:${gameId}`, 0, user);
         
