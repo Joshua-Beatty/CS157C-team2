@@ -57,6 +57,26 @@ if (!exists) {
 }
 }
 
+// Helper function to update overall average WPM
+async function updateOverallAverageWpm(username) {
+    try {
+        const avgWpmHistory = await client.lRange(`user:${username}:avg_wpm_history`, 0, -1);
+        
+        if (avgWpmHistory.length > 0) {
+            let totalWpm = 0;
+            for (const wpm of avgWpmHistory) {
+                totalWpm += parseInt(wpm);
+            }
+            
+            const overallAvgWpm = Math.round(totalWpm / avgWpmHistory.length);
+            await client.set(`user:${username}:overall_avg_wpm`, overallAvgWpm.toString());
+            console.log(`Updated overall average WPM for ${username} to ${overallAvgWpm}`);
+        }
+    } catch (error) {
+        console.error(`Error updating overall average WPM for ${username}:`, error);
+    }
+}
+
 // Connect to Redis
 client.connect()
     .then(async () => {
@@ -489,6 +509,10 @@ app.post('/startgame', async (req, res) => {
         await client.zAdd(`game:${gameId}:hps`, [{score: 5, value: player}]);
         // Create sorted set for player word lines (starting word line is 0)
         await client.zAdd(`game:${gameId}:wordLines`, [{score: 0, value: player}]);
+
+        // Add WPM tracking for this player (initialize at 0)
+        await client.zAdd(`game:${gameId}:wpm`, [{score: 0, value: player}]);
+        await client.zAdd(`game:${gameId}:avgWpm`, [{score: 0, value: player}]);
         
     }
     // Create word list
@@ -599,36 +623,6 @@ app.post('/checkgameready', async (req, res) => {
     }
 })
 
-// Don't think this is being used
-// app.post('/lockqueueid', async (req, res) => {
-//     const { queueId } = req.body;
-    
-//     // Set a lock flag to prevent ID conflicts during game creation
-//     await client.set(`queue:${queueId}:locked`, 1);
-    
-//     return res.json({ success: true });
-// });
-
-// Don't think this is being used
-// app.get('/getgameid', async (req, res) => {
-//     // Get current queueId
-//     const queueId = await client.get("queue:counter");
-    
-//     // Check if previous queue is locked (game creation in progress)
-//     const prevQueueId = (parseInt(queueId) - 1).toString();
-//     const isLocked = await client.get(`queue:${prevQueueId}:locked`);
-    
-//     // If previous queue is locked, use that ID instead
-//     if (isLocked === '1') {
-//         return res.json({ success: true, gameId: prevQueueId });
-//     }
-    
-//     // Otherwise, use actual game ID (one less than current queue ID)
-//     const gameId = parseInt(queueId) - 1;
-//     return res.json({ success: true, gameId: gameId.toString() });
-// });
-
-// Called for each user keyboard input
 app.post('/updategame', async (req, res) => {
     const { gameId, hp, currentLineIndex, user } = req.body;
 
@@ -653,12 +647,26 @@ app.post('/updategame', async (req, res) => {
         if (newHp == 0) {
             // Add a kill to leader
             const leader = await client.get(`game:${gameId}:leader`);
-            const kills = await client.get(`game:${gameId}:${leader}:kills`);
-            if (kills == null) {
-                await client.set(`game:${gameId}:${leader}:kills`, 1);
-            }
-            else {
-                await client.incr(`game:${gameId}:${leader}:kills`);
+            
+            // Only proceed if leader exists and is not the player who died
+            if (leader && leader !== user) {
+                try {
+                    // Get current kill count or start at 0
+                    const killsExist = await client.exists(`game:${gameId}:${leader}:kills`);
+                    
+                    if (!killsExist) {
+                        // First kill for this leader
+                        await client.set(`game:${gameId}:${leader}:kills`, '1');
+                        console.log(`First kill recorded for ${leader} in game ${gameId}`);
+                    } else {
+                        // Increment existing kills counter
+                        await client.incr(`game:${gameId}:${leader}:kills`);
+                        const newKills = await client.get(`game:${gameId}:${leader}:kills`);
+                        console.log(`Leader ${leader} now has ${newKills} kills in game ${gameId}`);
+                    }
+                } catch (killError) {
+                    console.error(`Error updating kills for leader ${leader}:`, killError);
+                }
             }
         }
     }
@@ -672,7 +680,7 @@ app.post('/fetchgame', async (req, res) => {
     const { gameId, user } = req.body;
     
     // Get all player line indices
-    const allPlayers = await client.zRange(`game:${gameId}:wordLines`, 0, -1, { WITHSCORES: true });
+    const allPlayers = await r.zrange(`game:${gameId}:wordLines`, 0, -1, 'WITHSCORES');
     const playerWordLines = {};
 
     // Convert the flattened array into a proper object
@@ -684,7 +692,7 @@ app.post('/fetchgame', async (req, res) => {
 
     
     // Get all player HP values
-    const allPlayerHps = await client.zRange(`game:${gameId}:hps`, 0, -1, { WITHSCORES: true });
+    const allPlayerHps = await r.zrange(`game:${gameId}:hps`, 0, -1, 'WITHSCORES');
     const playerHps = {};
 
     // Convert the flattened array into a proper object
@@ -692,6 +700,17 @@ app.post('/fetchgame', async (req, res) => {
         const player = allPlayerHps[i];
         const health = parseInt(allPlayerHps[i + 1]) || 0;
         playerHps[player] = health;
+    }
+
+    // Get all player wpms
+    const allPlayerWpm = await r.zrange(`game:${gameId}:wpm`, 0, -1, 'WITHSCORES');
+    const playerWpm = {};
+    
+    // Convert the flattened array into a proper object
+    for (let i = 0; i < allPlayerWpm.length; i += 2) {
+        const player = allPlayerWpm[i];
+        const wpm = parseInt(allPlayerWpm[i + 1]) || 0;
+        playerWpm[player] = wpm;
     }
     
     const leader = await r.zrevrange(`game:${gameId}:wordLines`, 0, 0);
@@ -705,15 +724,45 @@ app.post('/fetchgame', async (req, res) => {
     
     // Check if user is in zone
     let inZone = false;
+
+    // Check if user died (HP = 0)
+    let died = false;
+
     if (lineIndex <= zoneIndex) {
         inZone = true;
         // Check if user is 1 line deep into zone (instakill)
         if ((zoneIndex - lineIndex) == 1) {
+            // If this is a new instakill (player wasn't dead before), add a kill to the leader
+            if (!died) {
+                const leader = await client.get(`game:${gameId}:leader`);
+                
+                // Only proceed if leader exists and is not the player who died
+                if (leader && leader !== user) {
+                    try {
+                        console.log(`Player ${user} died by instakill zone - adding kill to leader ${leader}`);
+                        
+                        // Check if leader kills key exists
+                        const killsExist = await client.exists(`game:${gameId}:${leader}:kills`);
+                        
+                        if (!killsExist) {
+                            // First kill for this leader
+                            await client.set(`game:${gameId}:${leader}:kills`, '1');
+                            console.log(`First kill recorded for ${leader} in game ${gameId} from instakill`);
+                        } else {
+                            // Increment existing kills counter
+                            await client.incr(`game:${gameId}:${leader}:kills`);
+                            const newKills = await client.get(`game:${gameId}:${leader}:kills`);
+                            console.log(`Leader ${leader} now has ${newKills} kills in game ${gameId} after instakill`);
+                        }
+                    } catch (killError) {
+                        console.error(`Error updating kills for leader ${leader} after instakill:`, killError);
+                    }
+                }
+            }
             await client.zAdd(`game:${gameId}:hps`, [{score:0, value:user}])
         }
     }
-    // Check if user died (HP = 0)
-    let died = false;
+
     const hp = await client.zScore(`game:${gameId}:hps`, user);
     if (hp == '0') {
         died = true;
@@ -721,30 +770,189 @@ app.post('/fetchgame', async (req, res) => {
 
     // Check if game should end (only one player alive)
     const alivePlayers = await client.zCount(`game:${gameId}:hps`, 1, '+inf');
-    const gameEnded = alivePlayers <= 1;
+    const gameActuallyEnded = alivePlayers <= 1;
+    const playerIsDead = died;
+    const allGamePlayers = await client.lRange(`game:${gameId}`, 0, -1);
 
-    // Only 1 alive player
-    if (gameEnded) {
+    // Track stats for dead players without ending the game for everyone
+    if (playerIsDead && !gameActuallyEnded) {
+        // Check if this player's stats have been recorded already
+        const playerStatsTracked = await client.get(`game:${gameId}:player:${user}:stats_tracked`);
+        
+        if (!playerStatsTracked) {
+            // Mark this player's stats as tracked
+            await client.set(`game:${gameId}:player:${user}:stats_tracked`, '1');
+            
+            // Record this player's game played count
+            // Initialize if needed
+            if (!(await client.exists(`user:${user}:games_played`))) {
+                await client.set(`user:${user}:games_played`, '0');
+            }
+            // Increment counter
+            await client.incr(`user:${user}:games_played`);
+            console.log(`Incremented games_played for dead player ${user}`);
+            
+            // Save metrics for this player outside of game context
+            try {
+                // 1. Save highest WPM from this game to user's overall history
+                const wpmHistoryKey = `game:${gameId}:${user}:wpm_history`;
+                const wpmEntries = await r.zrevrange(wpmHistoryKey, 0, 0, 'WITHSCORES');
+                let highestWpm = 0;
+                if (wpmEntries.length >= 2) {
+                    highestWpm = parseFloat(wpmEntries[1]); // Score is at index 1
+                }
+                
+                // Only add to history if they actually typed (WPM > 0)
+                if (highestWpm > 0) {
+                    // Add highest WPM to user's overall WPM history
+                    await client.zAdd(`user:${user}:wpm_history`, [{score: highestWpm, value: gameId}]);
+                    console.log(`Added highest WPM (${highestWpm}) from game ${gameId} to ${user}'s overall history`);
+                }
+                
+                // 2. Save average WPM from this game to user's average WPM history
+                const avgWpm = await client.zScore(`game:${gameId}:avgWpm`, user);
+                if (avgWpm && avgWpm > 0) {
+                    await client.rPush(`user:${user}:avg_wpm_history`, avgWpm.toString());
+                    console.log(`Added average WPM (${avgWpm}) from game ${gameId} to ${user}'s average WPM history`);
+                    
+                    // Update overall average WPM
+                    await updateOverallAverageWpm(user);
+                }
+            } catch (error) {
+                console.error(`Error saving game metrics for ${user}:`, error);
+            }
+        }
+    }
+
+    // Only 1 alive player or they died
+    if (gameActuallyEnded) {
         // Get the winner (last player standing)
         const winner = await r.zrangebyscore(`game:${gameId}:hps`, 1, '+inf', 'LIMIT', 0, 1);
-        const isWinner = winner[0] === user;
-        
-        console.log(`Game ${gameId} has ended. Winner: ${winner[0]}`);
+        const winnerUsername = winner[0];
+        const isWinner = winnerUsername === user;
+
+        // Track game completion stats - only do this once per game
+        const gameStatsTracked = await client.get(`game:${gameId}:stats_tracked`);
+        if (!gameStatsTracked) {
+            try {
+                // Mark this game as having its stats tracked to prevent duplicates
+                await client.set(`game:${gameId}:stats_tracked`, '1');
+                
+                // Update stats for all players in the game
+                for (const player of allGamePlayers) {
+                    // Initialize games_played counter if it doesn't exist
+                    if (!(await client.exists(`user:${player}:games_played`))) {
+                        await client.set(`user:${player}:games_played`, '0');
+                    }
+
+                    // This retrieves kills directly using a single atomic operation
+                    let playerKills = 0;
+                    try {
+                        // Using exists first to prevent trying to convert null to number
+                        const killsExist = await client.exists(`game:${gameId}:${player}:kills`);
+                        if (killsExist) {
+                            const killsStr = await client.get(`game:${gameId}:${player}:kills`);
+                            playerKills = parseInt(killsStr, 10);
+                            
+                            // Validate that we got a proper number
+                            if (isNaN(playerKills)) {
+                                console.error(`Invalid kill count for player ${player}: ${killsStr}`);
+                                playerKills = 0;
+                            }
+                        }
+                    } catch (killError) {
+                        console.error(`Error retrieving kills for ${player}:`, killError);
+                        // Continue with zero kills if there was an error
+                    }
+                    
+                    // Debug logging to trace kill counts
+                    console.log(`Player ${player} had ${playerKills} kills in game ${gameId}`);
+                    
+                    // Update total kills (initialize if doesn't exist)
+                    if (!(await client.exists(`user:${player}:total_kills`))) {
+                        await client.set(`user:${player}:total_kills`, '0');
+                    }
+                    
+                    // Add this game's kills to the total
+                    if (playerKills > 0) {
+                        await client.incrBy(`user:${player}:total_kills`, playerKills);
+                        console.log(`Added ${playerKills} kills to ${player}'s total kills`);
+                        
+                        // Track highest kill game
+                        const highestKills = parseInt(await client.get(`user:${player}:highest_kills`) || '0');
+                        if (playerKills > highestKills) {
+                            await client.set(`user:${player}:highest_kills`, playerKills.toString());
+                            console.log(`Updated highest kills for ${player} to ${playerKills}`);
+                        }
+                    }
+                    
+                    // Increment games played counter
+                    await client.incr(`user:${player}:games_played`);
+                    console.log(`Incremented games_played for ${player}`);
+                }
+                
+                // Update winner's win count
+                if (winnerUsername) {
+                    // Initialize wins counter if it doesn't exist
+                    if (!(await client.exists(`user:${winnerUsername}:wins`))) {
+                        await client.set(`user:${winnerUsername}:wins`, '0');
+                    }
+                    
+                    // Increment wins counter
+                    await client.incr(`user:${winnerUsername}:wins`);
+                    console.log(`Incremented wins for ${winnerUsername}`);
+                }
+            } catch (error) {
+                console.error(`Error tracking game stats for game ${gameId}:`, error);
+            }
+        }
+
+        // Save WPM metrics for this player if not already saved when they died
+        const playerStatsTracked = await client.get(`game:${gameId}:player:${user}:stats_tracked`);
+        if (!playerStatsTracked) {
+            // Save metrics for this player
+            await client.set(`game:${gameId}:player:${user}:stats_tracked`, '1');
+
+            // Save metrics for this player outside of game context ***
+            try {
+                // 1. Save highest WPM from this game to user's overall history
+                const wpmHistoryKey = `game:${gameId}:${user}:wpm_history`;
+                const wpmEntries = await r.zrevrange(wpmHistoryKey, 0, 0, 'WITHSCORES');
+                let highestWpm = 0;
+                if (wpmEntries.length >= 2) {
+                    highestWpm = parseFloat(wpmEntries[1]); // Score is at index 1
+                }
+                
+                // Only add to history if they actually typed (WPM > 0)
+                if (highestWpm > 0) {
+                    // Add highest WPM to user's overall WPM history
+                    await client.zAdd(`user:${user}:wpm_history`, [{score: highestWpm, value: gameId}]);
+                    console.log(`Added highest WPM (${highestWpm}) from game ${gameId} to ${user}'s overall history`);
+                }
+                
+                // 2. Save average WPM from this game to user's average WPM history
+                const avgWpm = await client.zScore(`game:${gameId}:avgWpm`, user);
+                if (avgWpm && avgWpm > 0) {
+                    await client.rPush(`user:${user}:avg_wpm_history`, avgWpm.toString());
+                    console.log(`Added average WPM (${avgWpm}) from game ${gameId} to ${user}'s average WPM history`);
+                    
+                    // Update overall average WPM
+                    await updateOverallAverageWpm(user);
+                }
+            } catch (error) {
+                console.error(`Error saving game metrics for ${user}:`, error);
+            }
+        }
         
         return res.json({ 
-            success: true,
             gameOver: true,
             winner: winner[0],
             isWinner: isWinner,
-            success: true, playerHps: playerHps, playerWordLines: playerWordLines, 
+            success: true, playerHps: playerHps, playerWordLines: playerWordLines, playerWpm: playerWpm,
             wordList: wordList, hp: hp, inZone: inZone, died: died, leader: leader[0], isLeader: isLeader
         });
-    }
-
-    //console.log("word list:" + wordList)
-    return res.json({ success: true, playerHps: playerHps, playerWordLines: playerWordLines, 
-        wordList: wordList, hp: hp, inZone: inZone, died: died, leader: leader[0], isLeader: isLeader });
-
+    } 
+    return res.json({ success: true, playerHps: playerHps, playerWordLines: playerWordLines, playerWpm: playerWpm, wordList: wordList, hp: hp, inZone: inZone, died: died, leader: leader[0], isLeader: isLeader });
 })
 
 // Updates current leader in game
@@ -791,9 +999,65 @@ app.post('/updateleader', async (req, res) => {
 app.post('/getleaderkills', async (req, res) => {
     const { gameId, leader } = req.body;
     
-    const kills = await client.get(`game:${gameId}:${leader}:kills`) || 0;
+    try {
+        // First check if the key exists to avoid parsing null
+        const killsExist = await client.exists(`game:${gameId}:${leader}:kills`);
+        
+        let kills = 0;
+        if (killsExist) {
+            const killsStr = await client.get(`game:${gameId}:${leader}:kills`);
+            kills = parseInt(killsStr, 10);
+            
+            // Validate that we got a proper number
+            if (isNaN(kills)) {
+                console.error(`Invalid kill count for leader ${leader}: ${killsStr}`);
+                kills = 0;
+            }
+        }
+        
+        return res.json({ success: true, kills: kills });
+    } catch (error) {
+        console.error(`Error getting kills for ${leader}:`, error);
+        return res.json({ success: true, kills: 0 });  // Return 0 on error as a fallback
+    }
+});
+
+// Updates wpm of player
+app.post('/updatewpm', async (req, res) => {
+    const { gameId, user, currentWPM } = req.body;
     
-    return res.json({ success: true, kills: parseInt(kills) });
+    if (!gameId || !user) {
+        return res.json({ success: false, message: "Missing gameId or user" });
+    }
+    
+    try {
+        // Update the player's WPM values in Redis
+        await client.zAdd(`game:${gameId}:wpm`, [{score: currentWPM, value: user}]);
+        const timestamp = Date.now();
+        const wpmHistoryKey = `game:${gameId}:${user}:wpm_history`;
+        await client.zAdd(wpmHistoryKey, [{score: currentWPM, value: `${currentWPM}_${timestamp}`}]);
+
+        // Get all WPM values from history to calculate average
+        const wpmHistory = await r.zrange(wpmHistoryKey, 0, -1, 'WITHSCORES');
+
+        // Calculate average WPM
+        let totalWpm = 0;
+        let count = 0;
+        
+        // Process the flat array - every other element is a score
+        for (let i = 1; i < wpmHistory.length; i += 2) {
+            totalWpm += parseFloat(wpmHistory[i]);
+            count++;
+        }
+
+        const averageWpm = count > 0 ? Math.round(totalWpm / count) : 0;
+        await client.zAdd(`game:${gameId}:avgWpm`, [{score: averageWpm, value: user}]);
+        
+        return res.json({ success: true, averageWPM: averageWpm });
+    } catch (error) {
+        console.error('Error updating WPM:', error);
+        return res.json({ success: false, message: "Error updating WPM" });
+    }
 });
 
 // When user leaves game by clicking button or closing tab
@@ -810,25 +1074,31 @@ app.post('/leavegame', async (req, res) => {
         
         // 3. Remove user from word lines (progress) tracking sorted set
         await client.zRem(`game:${gameId}:wordLines`, user);
+
+        // Also remove WPM data
+        await client.zRem(`game:${gameId}:wpm`, user);
+        await r.del(`game:${gameId}:${user}:wpm_history`);
         
         // 4. Add a kill to leader (only if there is a leader)
         const leader = await client.get(`game:${gameId}:leader`);
-        if (leader) {
-            // Make sure to only proceed if leader is a valid string
-            if (typeof leader === 'string' && leader.trim() !== '') {
-                const killsKey = `game:${gameId}:${leader}:kills`;
-                console.log("Using kills key:", killsKey); // Add this log
-                try {
-                    const kills = await client.get(killsKey);
-                    if (kills == null) {
-                        await client.set(killsKey, 1);
-                    } else {
-                        await client.incr(killsKey);
-                    }
-                } catch (err) {
-                    console.error("Redis error with key", killsKey, err);
-                    // Continue execution even if this fails
+        if (leader && leader !== user) {  // Make sure leader exists and is not the same as the leaving player
+            try {
+                // Check if leader kills key exists
+                const killsExist = await client.exists(`game:${gameId}:${leader}:kills`);
+                
+                if (!killsExist) {
+                    // First kill for this leader
+                    await client.set(`game:${gameId}:${leader}:kills`, '1');
+                    console.log(`First kill recorded for ${leader} in game ${gameId} when ${user} left`);
+                } else {
+                    // Increment existing kills counter
+                    await client.incr(`game:${gameId}:${leader}:kills`);
+                    const newKills = await client.get(`game:${gameId}:${leader}:kills`);
+                    console.log(`Leader ${leader} now has ${newKills} kills in game ${gameId} after ${user} left`);
                 }
+            } catch (killError) {
+                console.error(`Error updating kills for leader ${leader}:`, killError);
+                // Continue execution even if this fails
             }
         }
         
@@ -895,6 +1165,52 @@ app.post('/leavequeue', async (req, res) => {
     } catch (error) {
         console.error('Error leaving queue:', error);
         return res.json({ success: false, message: "Error leaving queue" });
+    }
+});
+
+// Get all player stats in one call
+app.get('/userstats', requireLogin, async (req, res) => {
+    const username = req.session.user;
+    
+    try {
+        // Get WPM history
+        const wpmEntries = await r.zrevrange(`user:${username}:wpm_history`, 0, 0, 'WITHSCORES');
+        let highestWpm = 0;
+        if (wpmEntries.length >= 2) {
+            highestWpm = parseFloat(wpmEntries[1]); // Score is at index 1
+        }
+        
+        // Get overall average WPM
+        const overallAvgWpm = await client.get(`user:${username}:overall_avg_wpm`) || "0";
+        
+        // Get games played and wins
+        const gamesPlayed = await client.get(`user:${username}:games_played`) || "0";
+        const wins = await client.get(`user:${username}:wins`) || "0";
+        
+        // Calculate losses and win percentage
+        const gamesPlayedNum = parseInt(gamesPlayed);
+        const winsNum = parseInt(wins);
+        const losses = gamesPlayedNum - winsNum;
+        const winPercentage = gamesPlayedNum > 0 ? Math.round((winsNum / gamesPlayedNum) * 100) : 0;
+
+        // Get kills statistics
+        const totalKills = await client.get(`user:${username}:total_kills`) || "0";
+        const highestKills = await client.get(`user:${username}:highest_kills`) || "0";
+        
+        return res.json({
+            success: true,
+            highestWpm: highestWpm,
+            averageWpm: parseInt(overallAvgWpm),
+            totalGamesPlayed: gamesPlayedNum,
+            wins: winsNum,
+            losses: losses,
+            winPercentage: winPercentage,
+            totalKills: parseInt(totalKills),
+            highestKills: parseInt(highestKills)
+        });
+    } catch (error) {
+        console.error('Error fetching user stats:', error);
+        return res.json({ success: false, message: "Error fetching user stats" });
     }
 });
 

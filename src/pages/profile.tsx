@@ -1,6 +1,7 @@
 import { useRouter } from 'next/router';
 import { useEffect, useState} from 'react';
 import axios from 'axios';
+import { kill } from 'process';
 
 function Profile() {
     const router = useRouter();
@@ -11,6 +12,13 @@ function Profile() {
     const [username, setUsername] = useState('');
     const [displayName, setDisplayName] = useState('');
     const [email, setEmail] = useState('');
+    const [wins, setWins] = useState(0);
+    const [gamesPlayed, setGamesPlayed] = useState(0);
+    const [kills, setKills] = useState(0);
+    const [highestKills, setHighestKills] = useState(0);
+    const [avgWPM, setAvgWPM] = useState(0);
+    const [highestWPM, setHighestWPM] = useState(0);
+    const [winPercentage, setWinPercentage] = useState('');
 
     // Upon loading profile, check if user is logged in
     useEffect(() => {
@@ -41,6 +49,7 @@ function Profile() {
         };
 
         fetchProfile();
+        fetchUserStats();
     }, [router]);
 
     // Fetch user profile details
@@ -54,6 +63,25 @@ function Profile() {
             }
         } catch (error) {
             console.error('Error fetching user profile:', error);
+        }
+    };
+
+    // Fetch user stats
+    const fetchUserStats = async () => {
+        try {
+            const response = await axios.get('http://localhost:3000/userstats', { withCredentials: true });
+            console.log(response.data);
+            if (response.data.success) {
+                setWins(response.data.wins);
+                setGamesPlayed(response.data.totalGamesPlayed);
+                setAvgWPM(response.data.averageWpm);
+                setHighestWPM(response.data.highestWpm);
+                setWinPercentage(`${response.data.winPercentage}%`);
+                setKills(response.data.totalKills || 0);
+                setHighestKills(response.data.highestKills || 0);
+            }
+        } catch (error) {
+            console.error('Error fetching user stats:', error);
         }
     };
 
@@ -157,13 +185,13 @@ function Profile() {
                     }}>
                         <h2>GAME STATS</h2>
                         <div style={{ textAlign: 'left', marginTop: '20px' }}>
-                            <p><TetrisPiece type="i" /> Wins: 0</p>
-                            <p><TetrisPiece type="j" /> Games Played: 0</p>
-                            <p><TetrisPiece type="l" /> Average Placement: 0</p>
-                            <p><TetrisPiece type="o" /> Kills: 0</p>
-                            <p><TetrisPiece type="s" /> Highest Kill Game: 0</p>
-                            <p><TetrisPiece type="t" /> Average WPM: 0</p>
-                            <p><TetrisPiece type="z" /> Highest WPM: 0</p>
+                            <p><TetrisPiece type="i" /> Wins: {wins}</p>
+                            <p><TetrisPiece type="j" /> Win Percentage: {winPercentage}</p>
+                            <p><TetrisPiece type="l" /> Games Played: {gamesPlayed}</p>
+                            <p><TetrisPiece type="o" /> Kills: {kills}</p>
+                            <p><TetrisPiece type="s" /> Highest Kill Game: {highestKills}</p>
+                            <p><TetrisPiece type="t" /> Average WPM: {avgWPM}</p>
+                            <p><TetrisPiece type="z" /> Highest WPM: {highestWPM}</p>
                         </div>
                     </div>
 
