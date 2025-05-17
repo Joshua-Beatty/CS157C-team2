@@ -729,6 +729,33 @@ app.post('/fetchgame', async (req, res) => {
         // Check if user is 1 line deep into zone (instakill)
         if ((zoneIndex - lineIndex) == 1) {
             await client.zAdd(`game:${gameId}:hps`, [{score:0, value:user}])
+            // If this is a new instakill (player wasn't dead before), add a kill to the leader
+            if (!died) {
+                const leader = await client.get(`game:${gameId}:leader`);
+                
+                // Only proceed if leader exists and is not the player who died
+                if (leader && leader !== user) {
+                    try {
+                        console.log(`Player ${user} died by instakill zone - adding kill to leader ${leader}`);
+                        
+                        // Check if leader kills key exists
+                        const killsExist = await client.exists(`game:${gameId}:${leader}:kills`);
+                        
+                        if (!killsExist) {
+                            // First kill for this leader
+                            await client.set(`game:${gameId}:${leader}:kills`, '1');
+                            console.log(`First kill recorded for ${leader} in game ${gameId} from instakill`);
+                        } else {
+                            // Increment existing kills counter
+                            await client.incr(`game:${gameId}:${leader}:kills`);
+                            const newKills = await client.get(`game:${gameId}:${leader}:kills`);
+                            console.log(`Leader ${leader} now has ${newKills} kills in game ${gameId} after instakill`);
+                        }
+                    } catch (killError) {
+                        console.error(`Error updating kills for leader ${leader} after instakill:`, killError);
+                    }
+                }
+            }
         }
     }
     // Check if user died (HP = 0)
